@@ -105,9 +105,9 @@ agent-skills   只保留非 GIS 入口
 - **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，允许用户在 userConfig 中覆盖解释器路径；脚本只用标准库。
 - **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
 - **引擎位置用环境变量配置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`，hook 解释器为 `GIS_PLUGIN_PYTHON`；暂不使用 CC 的 userConfig（其值不进 Bash 工具环境）。多宿主适配见 [harnesses.md](harnesses.md)。
+- **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
 
 ## 9. 待定事项
 
 1. **外壳是否随 gis-kit 公开。** 若公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告；文档是否需要英文版。
 2. **约定的版本策略。** `schema_version` 不兼容升级时，引擎与外壳如何协商。
-3. **引擎版本号对齐。** gis-view 的 `viewer-entry.json`（`0.2.0`）与 `_instance.VERSION`（`0.3.0`，实例协议）不一致；capabilities 报前者。agent-skills 适配器已随迁移移除，`viewer-entry.json` 中的 `adapter_protocol`、`entry` 不再有读取方。
