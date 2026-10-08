@@ -46,9 +46,10 @@ adapters/dsh/cordis.patch.yml     有 hooks 后再加
 
 已核对：`claude plugin validate --strict` 通过两份清单与 `skills/`；隔离 `CODEX_HOME` 中 Codex marketplace 添加与插件安装成功。
 
+2026-10-08 实测：三家按上表安装后，在 CC（`claude -p`）、Codex（`codex exec`）与 dsh（`--profile headless`）会话中，模型都能发现 `gis-doctor` 并在 skill 目录运行脚本，输出一致。Codex 运行的是缓存副本，CC 与 dsh 运行仓库原件。
+
 ## 5. 待实测
 
 - Codex 插件 hooks：清单支持 `"hooks": "./hooks/....json"`，已见第三方插件让 CC 与 Codex 共用一份 hooks 文件并读取 `CLAUDE_PLUGIN_ROOT`；本仓库能否共用及 hook 事件中的实际工具名待实测。
-- 三家会话中 skill 是否被发现并能运行 doctor（目前只验证了清单与安装，未在会话中实测）。
 - Codex 与 dsh 中经 shell 读取 GIS 文件时，hook 能否可靠识别。
 - dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。
