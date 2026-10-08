@@ -1,6 +1,6 @@
 # 多宿主适配
 
-外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh 0.1.5-rc.1）核对的差异，宿主升级后需复核。
+外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh CLI 0.1.5-rc.1；之后 dsh 只用 App 0.2.0-rc.2）核对的差异，宿主升级后需复核。
 
 ## 1. 差异
 
@@ -13,6 +13,7 @@
 | MCP | `.mcp.json` | `.mcp.json` | `dsh-mcp-client`，每个 server 一项 |
 | 用户配置 | `userConfig`（值只传给 hook 进程与 skill 文本，不进 Bash 工具环境） | 无对应字段 | profile YAML |
 | 安装方式 | 本地 marketplace，原地加载 | 本地 marketplace，**复制**进缓存，改动后需重装；CLI 与 App 共用 `~/.codex` | 无插件安装；skills 软链进 `<dshHome>/skills` |
+| CLI 与 App | — | 版本不同，配置共用 | 各自带一套 dsh 代码与 Node（App 用 `desktop` profile），只共用 `~/.dsh` |
 
 `PreToolUse` 实测载荷（tool_name → 写入目标所在字段）：
 
@@ -50,7 +51,7 @@ hooks/scripts/                    标准库 Python
 |---|---|---|
 | CC | `claude plugin marketplace add <repo>`，再 `claude plugin install gis-plugin@gis-plugin` | `~/.claude/settings.json` 的 `env` |
 | Codex（CLI 与 App） | `codex plugin marketplace add <repo>`，再 `codex plugin add gis-plugin@gis-plugin`；更新后重新 add；首次使用时在 Codex 中信任本插件 hooks | `config.toml` 的 `[shell_environment_policy.set]`（App 不继承终端环境） |
-| dsh | `ln -s <repo>/skills/gis-doctor ~/.dsh/skills/gis-doctor`；hooks 见下 | 启动 dsh 的 shell 中导出 |
+| dsh | `ln -s <repo>/skills/gis-doctor ~/.dsh/skills/gis-doctor`；hooks 见下 | `~/.dsh/.env`（App 与 CLI 启动时都读取并传给子进程） |
 
 dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patch` 叠加）：
 
@@ -72,6 +73,7 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
 
 ## 6. 待实测
 
+- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）；App 0.2.0-rc.2 上的 doctor 与 hook 待实测。
 - 未经 dsh-purge 改写的 dsh 上，deny 是否生效；dsh-purge#80 有进展后复测。
 - `PostToolUse` 的 `additionalContext` 在三家的表现（元数据注入用）。
 - dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。
