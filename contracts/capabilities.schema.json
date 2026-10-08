@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gis-plugin/contracts/capabilities.schema.json",
+  "title": "GIS engine capabilities",
+  "description": "Output of `<engine> capabilities --json`: engine self-report of version, commands, contract support and runtime features.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "schema_version", "engine", "engine_version", "commands", "contracts", "features"],
+  "properties": {
+    "contract": {
+      "const": "capabilities"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "engine": {
+      "description": "Engine name, e.g. gis-kit, gis-view, gis-composer.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "engine_version": {
+      "description": "Engine release version (SemVer).",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "commands": {
+      "description": "Public subcommands that accept --json.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "uniqueItems": true
+    },
+    "contracts": {
+      "description": "File contracts this engine reads or writes, keyed by contract name, with supported schema_version values.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "read": { "$ref": "#/$defs/versions" },
+          "write": { "$ref": "#/$defs/versions" }
+        }
+      }
+    },
+    "features": {
+      "description": "Optional or environment-dependent capabilities, checked at runtime.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "available"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "description": "Why the feature is unavailable. Must not contain local paths, URLs or tokens.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "versions": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
