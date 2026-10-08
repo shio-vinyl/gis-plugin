@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect_sources.py\"",
+            "command": "\"${GIS_PLUGIN_PYTHON:-python3}\" \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect_sources.py\"",
             "timeout": 10
           }
         ]
