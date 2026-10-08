@@ -59,7 +59,7 @@
 | 动作 | 算、转换、写新数据 | 看、选、识别、审阅 | 出正式图和影片 |
 | 产生新数据文件 | 会，结果带状态字段 | 不会；只写查看状态、选择集、审阅记录 | 会（PNG、视频） |
 | 主要使用者 | Agent | 人；Agent 可发显示指令 | Agent 制作，人看结果 |
-| 给 Agent 的元数据描述 | 不负责（`inspect-data` 保留深入查看） | **唯一产出方**（`describe`，待实现） | 不负责 |
+| 给 Agent 的元数据描述 | **唯一产出方**（`gis.py describe`；`inspect-data` 保留深入查看） | 不负责（内部为显示自行读取） | 不负责 |
 | 公开状态 | 已公开（`shio-vinyl/gis-kit`） | 私有开发 | 私有开发 |
 
 “读元数据”分两种：引擎**内部**为了工作而读，属于各自实现，不需要统一；**给 Agent 看的描述**（卡片、警告、语义）是一个产品，只能有一个产出方。
@@ -105,6 +105,7 @@ agent-skills   只保留非 GIS 入口
 - **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，可用 `GIS_PLUGIN_PYTHON` 覆盖（hooks 已接入，CC 与 Codex 实测）；脚本只用标准库。
 - **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
 - **引擎位置用环境变量配置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`，hook 解释器为 `GIS_PLUGIN_PYTHON`；暂不使用 CC 的 userConfig（其值不进 Bash 工具环境）。多宿主适配见 [harnesses.md](harnesses.md)。
+- **元数据卡片由 gis-kit 产出**（2026-10-08）。原定 gis-view；改为最基础、最常安装的 gis-kit，使注入 hook 在任何场景都可用。外壳仍不读数据，经 `GIS_KIT_CMD describe` 获取。
 - **外壳暂不公开**（2026-10-08）。保持私有开发；以后若随 gis-kit 公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告，届时再定是否需要英文文档。
 - **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
 

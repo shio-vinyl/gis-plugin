@@ -69,6 +69,7 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
 - 清单：`claude plugin validate --strict` 通过；Codex 在隔离 `CODEX_HOME` 中添加 marketplace 与安装成功。
 - doctor：CC（`claude -p`）、Codex（`codex exec`，含 App 内置 CLI 仅靠 `config.toml` 环境变量）、dsh（`--profile headless`）中，模型都能发现 `gis-doctor` 并运行，输出一致。
 - 源数据保护：登记 `raw/**` 后要求模型改写 `raw/a.csv`。CC 的 `Edit` 与 `Bash`、Codex 的 `apply_patch` 与 `Bash` 均被拦截，文件未变，模型转述了登记位置与原因。Codex 测试使用 `--dangerously-bypass-hook-trust` 代替交互信任。
+- 元数据注入：CC 中 `UserPromptSubmit` 与 `PostToolUse`（Bash）都注入卡片，模型不调用工具即可答出字段、CRS、分辨率与 NoData；`settings.json` 的 `env` 会传给 hook。Codex 中 hook 运行正常，但 `shell_environment_policy.set` **只作用于 shell 工具、不传给 hook**，未在进程环境中提供 `GIS_KIT_CMD` 时不注入（从图形界面启动的 Codex App 即是这种情况）。
 - dsh：桥接确实调用了 hook，但本机装有第三方插件 dsh-purge，它改写了 dsh 全局安装中的 `dsh-hooks-claude-code`、`dsh-hooks-codex`、`dsh-sandbox` 等包，使 hook 的 deny 永不生效，因此写入未被拦截；升级到 dsh-purge 1.1.64 后复测仍相同。已提 [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80) 请求单独关闭该补丁。未装 dsh-purge 的 dsh 待复测。
 
 ## 6. 待实测

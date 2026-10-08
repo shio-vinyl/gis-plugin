@@ -5,7 +5,7 @@
 | 约定 | 用途 | 产出方 | 读取方 | 状态 |
 |---|---|---|---|---|
 | capabilities | 引擎自报版本与能力，供 doctor 和 hooks 判断可用性 | 各引擎（`capabilities --json` 子命令） | 外壳 | 草案，已有 Schema，见下文 |
-| describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-view | 外壳 hooks | 草案 |
+| describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-kit（`gis.py describe`） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | sources | 登记受保护的源数据，外壳 hook 拦截对其写入 | 用户（`.gis/sources.json`，跟随数据） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | semantics | 用户声明的字段语义：总量/密度/比率/类别、单位 | 用户（跟随数据或项目） | gis-kit、gis-view、外壳 hooks | 草案 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 草案 |
@@ -82,3 +82,14 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 外壳 hook（`hooks/scripts/protect_sources.py`）从被写路径逐级向上查找登记文件，因此保护跟随数据，与宿主工作目录无关。
 - 登记文件无效时，其目录树内的写入一律拒绝并说明原因；目录树外不受影响。
 - 识别范围：文件编辑工具、Codex `apply_patch`，以及 shell 命令中的重定向与常见写入命令（`rm`、`mv`、`cp`、`sed -i`、`tee`、`ogr2ogr`、`gdalwarp`、`gdal_edit.py` 等）。shell 识别是尽力而为，脚本内部的写入不在拦截范围。
+
+## describe
+
+Schema：[describe.schema.json](describe.schema.json)（`schema_version: 1`）。产出方为 gis-kit 的 `gis.py describe <path> --json`；外壳 hook `hooks/scripts/inject_describe.py` 读取后转成文字卡片注入对话。
+
+- 只读文件头与系统表，不读要素或像元；要素数或范围需扫描才能得到时为 `null`。
+- 矢量给出图层（最多 20 个，`layer_count` 为总数）、几何类型、要素数、CRS、范围、字段（最多 50 个，`field_count` 为总数）；栅格给出尺寸、波段、数据类型、逐波段 NoData（NaN 记为 `"nan"`，未设置为 `null`）、分辨率、CRS、范围。
+- `crs` 含 `id`（如 `EPSG:4490`，无法识别时为 `null`）、`name`、`geographic`、`units`；没有 CRS 时整个为 `null`。
+- `warnings` 只列确定性事实（`crs_missing`、`nodata_unset`），不给建议。
+- `revision`（大小与修改时间）用于判断卡片是否过期；hook 在同一会话内对同一 revision 只注入一次。
+- 读取方忽略不认识的字段。
