@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gis-plugin",
+  "description": "Local marketplace for gis-plugin.",
+  "owner": {
+    "name": "shio_vinyl"
+  },
+  "plugins": [
+    {
+      "name": "gis-plugin",
+      "description": "Thin integration shell for the GIS engines.",
+      "source": "./"
+    }
+  ]
+}

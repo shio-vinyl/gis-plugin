@@ -1,0 +1,10 @@
+{
+  "name": "gis-plugin",
+  "displayName": "GIS Plugin",
+  "version": "0.1.0",
+  "description": "Thin integration shell for the GIS engines (gis-kit, gis-view, gis-composer): entry skills, cross-engine hooks, file contracts and diagnostics.",
+  "author": {
+    "name": "shio_vinyl"
+  },
+  "keywords": ["gis", "geospatial", "diagnostics"]
+}
