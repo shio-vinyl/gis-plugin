@@ -102,7 +102,7 @@ agent-skills   只保留非 GIS 入口
 ## 8. 已定事项
 
 - **gis-kit 入口不进外壳**（2026-10-08）。gis-kit 已公开，仓库自带的 SKILL.md 是唯一入口，用户照旧独立安装。外壳不含 gis-kit skill，只提供跨引擎能力，并在 `/gis-doctor` 中检查 gis-kit 是否已安装、版本是否兼容。因此外壳的薄 skills 只有 gis-view 与 gis-composer 两份。
-- **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，允许用户在 userConfig 中覆盖解释器路径；脚本只用标准库。
+- **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，计划允许用 `GIS_PLUGIN_PYTHON` 覆盖（尚未接入 hooks）；脚本只用标准库。
 - **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
 - **引擎位置用环境变量配置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`，hook 解释器为 `GIS_PLUGIN_PYTHON`；暂不使用 CC 的 userConfig（其值不进 Bash 工具环境）。多宿主适配见 [harnesses.md](harnesses.md)。
 - **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
