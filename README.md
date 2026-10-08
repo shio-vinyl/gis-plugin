@@ -7,6 +7,8 @@ GIS 系列（gis-kit、gis-view、gis-composer）面向 Agent harness 的薄外�
 - **约定**：引擎之间交换的文件格式（semantics、view、selection、review、capabilities）；
 - **诊断与评测**：`/gis-doctor` 检查引擎是否可用，评测集衡量外壳是否真的有用。
 
+设计理念：给模型好用的工具和确定的事实，而不是一份规则清单，详见 [docs/philosophy.md](docs/philosophy.md)。
+
 当前为私有开发，结构与边界见 [docs/boundaries.md](docs/boundaries.md)，多宿主（Claude Code、Codex、dsh）适配见 [docs/harnesses.md](docs/harnesses.md)，约定清单见 [contracts/README.md](contracts/README.md)。
 
 ## 状态

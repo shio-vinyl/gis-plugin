@@ -24,8 +24,3 @@ python3 scripts/gis_doctor.py
 | `GIS_COMPOSER_CMD` | gis-composer |
 
 doctor 对每个已配置的引擎运行 `<命令> capabilities --json`，按 `contracts/capabilities.schema.json` 校验输出并检查最低版本。
-
-## 报告结果
-
-- 原样转述每个引擎的状态与原因，不猜测、不自行修复。
-- 引擎缺失、不兼容或未提供 capabilities 时，告诉用户需要做什么；不要改用其它引擎，也不要自动安装或升级。
