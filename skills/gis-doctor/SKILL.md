@@ -15,7 +15,7 @@ python3 scripts/gis_doctor.py
 
 ## 配置
 
-引擎位置由环境变量给出，值为命令行字符串：
+引擎位置写在 `~/.config/gis-plugin/engines.env`（每行 `变量="命令"`），同名环境变量优先；值为命令行字符串：
 
 | 变量 | 引擎 |
 |---|---|

@@ -30,6 +30,26 @@ def _texts(payload):
     return [v for v in tool_input.values() if isinstance(v, str)]
 
 
+def engine_settings(environ):
+    """GIS_* settings: environment variables win over the shared file ~/.config/gis-plugin/engines.env."""
+    path = environ.get("GIS_PLUGIN_CONFIG") or os.path.join(
+        environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "gis-plugin", "engines.env")
+    settings = {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                key, sep, value = line.strip().partition("=")
+                key, value = key.strip(), value.strip()
+                if sep and key.startswith("GIS_"):
+                    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                        value = value[1:-1]
+                    settings[key] = value
+    except OSError:
+        pass
+    settings.update({k: v for k, v in environ.items() if k.startswith("GIS_") and v.strip()})
+    return settings
+
+
 def candidates(payload):
     """Existing GIS paths in the prompt or tool input, in order of appearance."""
     tool_input = payload.get("tool_input") or {}
@@ -130,7 +150,7 @@ def describe(command, path):
 
 
 def run(payload, environ):
-    raw = environ.get("GIS_KIT_CMD", "").strip()
+    raw = engine_settings(environ).get("GIS_KIT_CMD", "").strip()
     if not raw:
         return None
     paths = candidates(payload)

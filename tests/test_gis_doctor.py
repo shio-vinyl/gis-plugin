@@ -60,7 +60,7 @@ class FakeEngines(unittest.TestCase):
         self.assertEqual(result["status"], "ok", result)
 
     def test_not_configured(self):
-        report = doctor.run({})
+        report = doctor.run({"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"})
         self.assertEqual({e["status"] for e in report["engines"]}, {"not_configured"})
 
     def test_missing_executable(self):
@@ -78,9 +78,25 @@ class FakeEngines(unittest.TestCase):
         self.assertEqual(result["status"], "error")
 
     def test_schema_violation(self):
-        result = self.check(self.engine("extra", json.dumps(caps(extra=1))))
+        result = self.check(self.engine("v2", json.dumps(caps(schema_version=2))))
         self.assertEqual(result["status"], "error")
-        self.assertIn("未知字段 extra", result["problems"])
+        self.assertIn("schema_version 须为 1，实为 2", result["problems"])
+
+    def test_unknown_fields_are_ignored(self):
+        doc = caps(extra=1, features=[{"name": "desktop", "available": True, "since": "0.3"}],
+                   contracts={"selection": {"write": [1], "draft": True}})
+        self.assertEqual(self.check(self.engine("extra", json.dumps(doc)))["status"], "ok")
+
+    def test_contract_negotiation(self):
+        kit = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"describe": {"write": [1]}})}
+        view = {"engine": "gis-view", "capabilities": caps(contracts={"selection": {"write": [2]}})}
+        reader = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"selection": {"read": [1]}})}
+        pairs = doctor.check_contracts([kit, view, reader])
+        by_key = {(p["contract"], p["writer"], p["reader"]): p for p in pairs}
+        self.assertEqual(by_key[("describe", "gis-kit", "gis-plugin")]["status"], "ok")
+        self.assertEqual(by_key[("selection", "gis-view", "gis-kit")]["status"], "error")
+        old = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"describe": {"write": [2]}})}
+        self.assertEqual(doctor.check_contracts([old])[0]["status"], "error")
 
     def test_engine_mismatch(self):
         result = self.check(self.engine("mismatch", json.dumps(caps(engine="gis-kit"))))
@@ -97,10 +113,10 @@ class FakeEngines(unittest.TestCase):
         self.assertEqual(result["status"], "warn")
 
     def test_exit_code(self):
-        with mock.patch.dict(os.environ, {"GIS_VIEW_CMD": self.engine("x", "{}")}, clear=True), \
+        with mock.patch.dict(os.environ, {"GIS_VIEW_CMD": self.engine("x", "{}"), "GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"}, clear=True), \
                 mock.patch("sys.stdout"):
             self.assertEqual(doctor.main([]), 1)
-        with mock.patch.dict(os.environ, {}, clear=True), mock.patch("sys.stdout"):
+        with mock.patch.dict(os.environ, {"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"}, clear=True), mock.patch("sys.stdout"):
             self.assertEqual(doctor.main(["--json"]), 0)
 
 
@@ -110,6 +126,7 @@ class ValidatorMatchesSchema(unittest.TestCase):
     SAMPLES = [
         caps(),
         caps(extra=1),
+        caps(features=[{"name": "x", "available": True, "since": "1"}]),
         caps(schema_version=2),
         caps(schema_version=True),
         caps(engine="Gis_View"),

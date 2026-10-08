@@ -20,6 +20,15 @@
 - 引用源数据时带 revision（或大小与修改时间），读取方发现不一致时拒绝而不是继续。
 - gis-kit 已有的 trace、recipe 与状态字段（`candidate`、`hold` 等）以 gis-kit 仓库为准，此处只引用。
 
+## 版本规则
+
+1. **兼容变更不升版本**：只有“新增可选字段”算兼容。读取方必须忽略不认识的字段，Schema 不禁止额外字段。
+2. **不兼容变更才把 `schema_version` 加 1**：删除字段、改名、改含义、新增必填字段。
+3. **读取方遇到不认识的版本时拒绝并说明**，不猜测。
+4. **协商**：各引擎在 capabilities 的 `contracts` 中声明读写的版本；`gis-doctor` 把每个写入方与每个读取方（含外壳自身，见下）配对，找不到共同版本时报错并指出是哪两方。外壳目前读取 `describe` v1。
+5. **过渡**：升级时产出方至少在一个版本周期内仍能按旧版本写出（例如 `--schema-version N`），读取方同时读新旧两版。外壳不做格式迁移，迁移由产出该格式的引擎负责。
+6. **capabilities 本身只做兼容变更**，作为协商起点保持 v1。
+
 ## capabilities
 
 Schema：[capabilities.schema.json](capabilities.schema.json)（`schema_version: 1`）。

@@ -2,10 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "gis-plugin/contracts/capabilities.schema.json",
   "title": "GIS engine capabilities",
-  "description": "Output of `<engine> capabilities --json`: engine self-report of version, commands, contract support and runtime features.",
+  "description": "Output of `<engine> capabilities --json`: engine self-report of version, commands, contract support and runtime features. Readers ignore unknown fields.",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["contract", "schema_version", "engine", "engine_version", "commands", "contracts", "features"],
+  "required": [
+    "contract",
+    "schema_version",
+    "engine",
+    "engine_version",
+    "commands",
+    "contracts",
+    "features"
+  ],
   "properties": {
     "contract": {
       "const": "capabilities"
@@ -40,11 +47,14 @@
       },
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": false,
         "minProperties": 1,
         "properties": {
-          "read": { "$ref": "#/$defs/versions" },
-          "write": { "$ref": "#/$defs/versions" }
+          "read": {
+            "$ref": "#/$defs/versions"
+          },
+          "write": {
+            "$ref": "#/$defs/versions"
+          }
         }
       }
     },
@@ -53,8 +63,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "available"],
+        "required": [
+          "name",
+          "available"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -74,7 +86,10 @@
   "$defs": {
     "versions": {
       "type": "array",
-      "items": { "type": "integer", "minimum": 1 },
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
       "minItems": 1,
       "uniqueItems": true
     }

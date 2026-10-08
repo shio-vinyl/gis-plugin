@@ -24,6 +24,7 @@ class EngineLauncher(unittest.TestCase):
 
     def run_launcher(self, *args, **env):
         base = {k: v for k, v in os.environ.items() if not k.startswith("GIS_")}
+        base["GIS_PLUGIN_CONFIG"] = str(self.tmp / "engines.env")
         return subprocess.run([sys.executable, str(COPIES[0]), *args], env={**base, **env},
                               text=True, capture_output=True)
 
@@ -48,6 +49,23 @@ class EngineLauncher(unittest.TestCase):
         result = self.run_launcher("gis-kit", "list", GIS_KIT_CMD=str(self.tmp / "missing"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("gis-doctor", result.stderr)
+
+    def test_shared_config_file_and_precedence(self):
+        config = self.tmp / "engines.env"
+        config.write_text("# comment\nGIS_VIEW_CMD=\"" + self.cmd.replace('"', '\\"') + "\"\nOTHER=1\n", encoding="utf-8")
+        result = self.run_launcher("gis-view", "status")
+        self.assertEqual(json.loads(result.stdout), ["status"], result.stderr)
+        overridden = self.run_launcher("gis-view", "status", GIS_VIEW_CMD=str(self.tmp / "missing"))
+        self.assertNotEqual(overridden.returncode, 0)
+
+    def test_loader_is_identical_everywhere(self):
+        import ast
+        def source(path):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "engine_settings")
+            return ast.get_source_segment(path.read_text(encoding="utf-8"), node)
+        files = [*COPIES, ROOT / "skills/gis-doctor/scripts/gis_doctor.py", ROOT / "hooks/scripts/inject_describe.py"]
+        self.assertEqual(len({source(p) for p in files}), 1)
 
 
 if __name__ == "__main__":

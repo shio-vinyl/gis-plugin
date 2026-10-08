@@ -25,7 +25,7 @@
 
 ## 2. 设计决定
 
-1. **引擎位置用环境变量配置**：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。skill 经 `scripts/run.py` 调用，因为 zsh 不对未加引号的变量分词。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
+1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。skill 经 `scripts/run.py` 调用，因为 zsh 不对未加引号的变量分词。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
 3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`PostToolUse` 的 `additionalContext`（元数据注入）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
 4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|apply_patch|write|edit|bash)$`，命令为 `"${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"`；解释器覆盖在 CC 与 Codex 实测生效。
@@ -47,11 +47,13 @@ hooks/scripts/                    标准库 Python
 
 以下均为示例，安装须用户执行或明确授权。`<repo>` 为本仓库绝对路径。
 
-| 宿主 | 安装 | 引擎环境变量 |
+| 宿主 | 安装 | 备注 |
 |---|---|---|
-| CC | `claude plugin marketplace add <repo>`，再 `claude plugin install gis-plugin@gis-plugin` | `~/.claude/settings.json` 的 `env` |
-| Codex（CLI 与 App） | `codex plugin marketplace add <repo>`，再 `codex plugin add gis-plugin@gis-plugin`；更新后重新 add；首次使用时在 Codex 中信任本插件 hooks | `config.toml` 的 `[shell_environment_policy.set]`（App 不继承终端环境） |
-| dsh | 对 `gis-doctor`、`gis-view`、`gis-composer` 各执行 `ln -s <repo>/skills/<name> ~/.dsh/skills/<name>`；hooks 见下 | `~/.dsh/.env`（App 与 CLI 启动时都读取并传给子进程） |
+| CC | `claude plugin marketplace add <repo>`，再 `claude plugin install gis-plugin@gis-plugin` | — |
+| Codex（CLI 与 App） | `codex plugin marketplace add <repo>`，再 `codex plugin add gis-plugin@gis-plugin`；更新后重新 add；首次使用时在 Codex 中信任本插件 hooks | App 与 CLI 共用 `~/.codex` |
+| dsh | 对 `gis-doctor`、`gis-view`、`gis-composer` 各执行 `ln -s <repo>/skills/<name> ~/.dsh/skills/<name>`；hooks 见下 | App 与 CLI 共用 `~/.dsh` |
+
+引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。
 
 dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patch` 叠加）：
 
@@ -69,12 +71,12 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
 - 清单：`claude plugin validate --strict` 通过；Codex 在隔离 `CODEX_HOME` 中添加 marketplace 与安装成功。
 - doctor：CC（`claude -p`）、Codex（`codex exec`，含 App 内置 CLI 仅靠 `config.toml` 环境变量）、dsh（`--profile headless`）中，模型都能发现 `gis-doctor` 并运行，输出一致。
 - 源数据保护：登记 `raw/**` 后要求模型改写 `raw/a.csv`。CC 的 `Edit` 与 `Bash`、Codex 的 `apply_patch` 与 `Bash` 均被拦截，文件未变，模型转述了登记位置与原因。Codex 测试使用 `--dangerously-bypass-hook-trust` 代替交互信任。
-- 元数据注入：CC 中 `UserPromptSubmit` 与 `PostToolUse`（Bash）都注入卡片，模型不调用工具即可答出字段、CRS、分辨率与 NoData；`settings.json` 的 `env` 会传给 hook。Codex 中 hook 运行正常，但 `shell_environment_policy.set` **只作用于 shell 工具、不传给 hook**，未在进程环境中提供 `GIS_KIT_CMD` 时不注入（从图形界面启动的 Codex App 即是这种情况）。
+- 元数据注入：CC 中 `UserPromptSubmit` 与 `PostToolUse`（Bash）都注入卡片，模型不调用工具即可答出字段、CRS、分辨率与 NoData；`settings.json` 的 `env` 会传给 hook。Codex 中 hook 运行正常，但 `shell_environment_policy.set` **只作用于 shell 工具、不传给 hook**，因此引擎位置改为共用文件 `engines.env`；改后 Codex 进程环境中没有任何 `GIS_*` 变量时仍正常注入。
 - dsh：桥接确实调用了 hook，但本机装有第三方插件 dsh-purge，它改写了 dsh 全局安装中的 `dsh-hooks-claude-code`、`dsh-hooks-codex`、`dsh-sandbox` 等包，使 hook 的 deny 永不生效，因此写入未被拦截；升级到 dsh-purge 1.1.64 后复测仍相同。已提 [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80) 请求单独关闭该补丁。未装 dsh-purge 的 dsh 待复测。
 
 ## 6. 待实测
 
-- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）。App 0.2.0-rc.2 上 doctor 已实测通过（引擎变量来自 `~/.dsh/.env`）；hook 未测，App 内置的桥接同样被 dsh-purge 改写。
+- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）。App 0.2.0-rc.2 上 doctor 已实测通过（当时引擎变量来自 `~/.dsh/.env`，现已改为 `engines.env`）；hook 未测，App 内置的桥接同样被 dsh-purge 改写。
 - 未经 dsh-purge 改写的 dsh 上，deny 是否生效；dsh-purge#80 有进展后复测。
 - `PostToolUse` 的 `additionalContext` 在三家的表现（元数据注入用）。
 - dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。

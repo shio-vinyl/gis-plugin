@@ -53,7 +53,8 @@ class InjectDescribe(unittest.TestCase):
         kit.write_text(FAKE_KIT, encoding="utf-8")
         self.log = self.tmp / "calls.log"
         self.env = {"GIS_KIT_CMD": f"{shlex.quote(sys.executable)} {shlex.quote(str(kit))}",
-                    "FAKE_KIT_LOG": str(self.log), "GIS_PLUGIN_STATE": str(self.tmp / "state")}
+                    "FAKE_KIT_LOG": str(self.log), "GIS_PLUGIN_STATE": str(self.tmp / "state"),
+                    "GIS_PLUGIN_CONFIG": str(self.tmp / "engines.env")}
         patcher = mock.patch.dict(os.environ, {"FAKE_KIT_LOG": str(self.log)})
         patcher.start()
         self.addCleanup(patcher.stop)
