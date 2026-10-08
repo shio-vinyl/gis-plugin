@@ -73,7 +73,7 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
 
 ## 6. 待实测
 
-- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）；App 0.2.0-rc.2 上的 doctor 与 hook 待实测。
+- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）。App 0.2.0-rc.2 上 doctor 已实测通过（引擎变量来自 `~/.dsh/.env`）；hook 未测，App 内置的桥接同样被 dsh-purge 改写。
 - 未经 dsh-purge 改写的 dsh 上，deny 是否生效；dsh-purge#80 有进展后复测。
 - `PostToolUse` 的 `additionalContext` 在三家的表现（元数据注入用）。
 - dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。
