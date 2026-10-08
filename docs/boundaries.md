@@ -97,7 +97,7 @@ gis-plugin     外壳（本仓库，私有）
 agent-skills   只保留非 GIS 入口
 ```
 
-入口只能有一份。gis-kit 的入口留在 gis-kit 仓库。外壳就绪后，agent-skills 中的 `gis-view/` 与 `gis-composer/` 入口迁入本仓库并从原处移除，不两边并存。
+入口只能有一份。gis-kit 的入口留在 gis-kit 仓库；gis-view 与 gis-composer 的入口已于 2026-10-08 从 agent-skills 迁入本仓库 `skills/`，原处移除。
 
 ## 8. 已定事项
 
@@ -110,4 +110,4 @@ agent-skills   只保留非 GIS 入口
 
 1. **外壳是否随 gis-kit 公开。** 若公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告；文档是否需要英文版。
 2. **约定的版本策略。** `schema_version` 不兼容升级时，引擎与外壳如何协商。
-3. **引擎版本号对齐。** gis-view 的 `viewer-entry.json`（`0.2.0`，agent-skills 适配器严格匹配）与 `_instance.VERSION`（`0.3.0`，实例协议）不一致；capabilities 目前报前者。在 gis-view、gis-composer 入口迁入外壳时一并处理。
+3. **引擎版本号对齐。** gis-view 的 `viewer-entry.json`（`0.2.0`）与 `_instance.VERSION`（`0.3.0`，实例协议）不一致；capabilities 报前者。agent-skills 适配器已随迁移移除，`viewer-entry.json` 中的 `adapter_protocol`、`entry` 不再有读取方。

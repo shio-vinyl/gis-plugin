@@ -25,7 +25,7 @@
 
 ## 2. 设计决定
 
-1. **引擎位置用环境变量配置**：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分）。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
+1. **引擎位置用环境变量配置**：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。skill 经 `scripts/run.py` 调用，因为 zsh 不对未加引号的变量分词。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
 3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`PostToolUse` 的 `additionalContext`（元数据注入）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
 4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|apply_patch|write|edit|bash)$`，命令为 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"`。`GIS_PLUGIN_PYTHON` 覆盖尚未接入 hooks。
@@ -34,7 +34,7 @@
 ## 3. 目录
 
 ```
-skills/                           gis-doctor（以后加 gis-view、gis-composer）
+skills/                           gis-doctor、gis-view、gis-composer；后两者带同一份 scripts/run.py 启动脚本
 hooks/hooks.json                  三家共用（CC 默认位置；Codex 经清单引用；dsh 经桥接）
 hooks/scripts/                    标准库 Python
 .claude-plugin/plugin.json        CC 清单
@@ -51,7 +51,7 @@ hooks/scripts/                    标准库 Python
 |---|---|---|
 | CC | `claude plugin marketplace add <repo>`，再 `claude plugin install gis-plugin@gis-plugin` | `~/.claude/settings.json` 的 `env` |
 | Codex（CLI 与 App） | `codex plugin marketplace add <repo>`，再 `codex plugin add gis-plugin@gis-plugin`；更新后重新 add；首次使用时在 Codex 中信任本插件 hooks | `config.toml` 的 `[shell_environment_policy.set]`（App 不继承终端环境） |
-| dsh | `ln -s <repo>/skills/gis-doctor ~/.dsh/skills/gis-doctor`；hooks 见下 | `~/.dsh/.env`（App 与 CLI 启动时都读取并传给子进程） |
+| dsh | 对 `gis-doctor`、`gis-view`、`gis-composer` 各执行 `ln -s <repo>/skills/<name> ~/.dsh/skills/<name>`；hooks 见下 | `~/.dsh/.env`（App 与 CLI 启动时都读取并传给子进程） |
 
 dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patch` 叠加）：
 

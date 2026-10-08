@@ -13,7 +13,7 @@ GIS 系列（gis-kit、gis-view、gis-composer）面向 Agent harness 的薄外�
 
 ## 状态
 
-草案阶段。已有：边界与适配文档、capabilities 约定、`gis-doctor` skill、CC 与 Codex 清单（安装方式见 [docs/harnesses.md](docs/harnesses.md#4-安装与配置)）、源数据保护 hook（登记格式见 [contracts/README.md](contracts/README.md#sources)）。
+草案阶段。已有：边界与适配文档、capabilities 约定、`gis-doctor`、`gis-view`、`gis-composer` skills、CC 与 Codex 清单（安装方式见 [docs/harnesses.md](docs/harnesses.md#4-安装与配置)）、源数据保护 hook（登记格式见 [contracts/README.md](contracts/README.md#sources)）。
 
 测试：
 
