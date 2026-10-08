@@ -5,13 +5,21 @@
   "author": {
     "name": "shio_vinyl"
   },
-  "keywords": ["gis", "geospatial", "diagnostics"],
+  "keywords": [
+    "gis",
+    "geospatial",
+    "diagnostics"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "GIS Plugin",
     "shortDescription": "GIS engine entry points and diagnostics",
     "developerName": "shio_vinyl",
     "category": "Developer Tools",
-    "capabilities": ["Read"]
-  }
+    "capabilities": [
+      "Read",
+      "Lifecycle hooks"
+    ]
+  },
+  "hooks": "./hooks/hooks.json"
 }

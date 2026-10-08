@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | capabilities | 引擎自报版本与能力，供 doctor 和 hooks 判断可用性 | 各引擎（`capabilities --json` 子命令） | 外壳 | 草案，已有 Schema，见下文 |
 | describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-view | 外壳 hooks | 草案 |
+| sources | 登记受保护的源数据，外壳 hook 拦截对其写入 | 用户（`.gis/sources.json`，跟随数据） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | semantics | 用户声明的字段语义：总量/密度/比率/类别、单位 | 用户（跟随数据或项目） | gis-kit、gis-view、外壳 hooks | 草案 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 草案 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 草案 |
@@ -61,3 +62,23 @@ Schema：[capabilities.schema.json](capabilities.schema.json)（`schema_version:
 ```
 
 gis-view 现有的 `viewer-entry.json` 保留为其内部文件，其 `engine_version` 由 `capabilities` 子命令转述。
+
+## sources
+
+Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
+
+登记文件放在数据所在目录的 `.gis/sources.json`，模式相对于包含 `.gis/` 的目录：
+
+```json
+{
+  "contract": "sources",
+  "schema_version": 1,
+  "protected": ["raw/**", "dem/srtm.tif", "roads.shp", "parcels.gdb"]
+}
+```
+
+- `*`、`?` 不跨目录，`**` 跨目录；`dir/**` 同时覆盖 `dir` 本身；写入目录内任何文件都算写入该目录。
+- 附属文件随主数据保护：`roads.shp` 覆盖 `.shx`、`.dbf`、`.prj`、`.cpg` 等；任一文件覆盖其 `.aux.xml`、`.ovr`、`.msk`。
+- 外壳 hook（`hooks/scripts/protect_sources.py`）从被写路径逐级向上查找登记文件，因此保护跟随数据，与宿主工作目录无关。
+- 登记文件无效时，其目录树内的写入一律拒绝并说明原因；目录树外不受影响。
+- 识别范围：文件编辑工具、Codex `apply_patch`，以及 shell 命令中的重定向与常见写入命令（`rm`、`mv`、`cp`、`sed -i`、`tee`、`ogr2ogr`、`gdalwarp`、`gdal_edit.py` 等）。shell 识别是尽力而为，脚本内部的写入不在拦截范围。
