@@ -66,6 +66,8 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
         pluginRoot: <repo>
 ```
 
+dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中的哨兵值，使用户自己 hook 的 deny 永久失效（上游 issue [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80)）。**1.1.66** 起可在清洗页关掉：设置文件 `~/.dsh/dsh-purge/hooks-deny.json` 写 `{"hooksDenyBypass": false}`，插件同时排除补丁 30/31/64/65，并把宿主文件写回官方形态。
+
 ## 5. 实测记录（2026-10-08）
 
 - 清单：`claude plugin validate --strict` 通过；Codex 在隔离 `CODEX_HOME` 中添加 marketplace 与安装成功。
@@ -73,10 +75,13 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
 - 源数据保护：登记 `raw/**` 后要求模型改写 `raw/a.csv`。CC 的 `Edit` 与 `Bash`、Codex 的 `apply_patch` 与 `Bash` 均被拦截，文件未变，模型转述了登记位置与原因。Codex 测试使用 `--dangerously-bypass-hook-trust` 代替交互信任。
 - 元数据注入：CC 中 `UserPromptSubmit` 与 `PostToolUse`（Bash）都注入卡片，模型不调用工具即可答出字段、CRS、分辨率与 NoData；`settings.json` 的 `env` 会传给 hook。Codex 中 hook 运行正常，但 `shell_environment_policy.set` **只作用于 shell 工具、不传给 hook**，因此引擎位置改为共用文件 `engines.env`；改后 Codex 进程环境中没有任何 `GIS_*` 变量时仍正常注入。
 - dsh：桥接确实调用了 hook，但本机装有第三方插件 dsh-purge，它改写了 dsh 全局安装中的 `dsh-hooks-claude-code`、`dsh-hooks-codex`、`dsh-sandbox` 等包，使 hook 的 deny 永不生效，因此写入未被拦截；升级到 dsh-purge 1.1.64 后复测仍相同。已提 [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80) 请求单独关闭该补丁。未装 dsh-purge 的 dsh 待复测。
+- 进展（2026-10-09）：dsh-purge **1.1.66**（`09bac57f`）按 #80 加了开关，上游 issue 已关闭；本机装的是其后的 master（`3df4f48`，含 #84 宿主崩溃修复）。已把 `hooksDenyBypass` 设为 `false`，`dsh-hooks-claude-code`、`dsh-hooks-codex` 写回官方形态、与旁边的 `.dshpurge.bak` 逐字节一致（`diff` 为空），文件内不再有旁路标记；桥接已挂进本机 `desktop` profile。`protect_sources.py` 在桥接 payload 形态下（`tool_name`/`tool_input`/`cwd`）离线验证通过：受保护路径的 `write`、`bash` 重定向与 `rm` 都返回 `permissionDecision: deny`，未登记路径无输出，退出码均为 0。
+- dsh 在环实测（2026-10-10）：用 App 0.2.0-rc.2 自带的 dsh（`ELECTRON_RUN_AS_NODE=1` 运行 App 可执行文件 + 包内 `dsh/lib/bin.js`）以 `--profile headless --patch <桥接 overlay>` 跑真实模型回合，夹具在仓库外、登记 `raw/**`：
+  - 拦截：`edit` 改 `raw/a.csv`、`bash` 执行 `printf ... > raw/a.csv` 都返回 hook 的拒绝原因（工具结果 `status: error`），文件哈希不变；模型转述了登记位置并拒绝绕过。
+  - 注入：提示中提到 `data/pts.geojson` 时（`UserPromptSubmit`），模型不调用工具即答出字段、EPSG:4326 与要素数；提示不含完整路径、仅 `bash` 命令带上路径时（`PostToolUse`），卡片同样进入上下文。
+  - 观察：`PostToolUse` 卡片出现在工具结果之后，DeepSeek 模型一次把它当作“非自己工具产生的未验证内容”，只转述、不采信。之后在卡片前加一行事实性来源说明（gis-plugin hook 实际运行 `gis-kit describe --json` 所得），同一场景复测 3 次均直接采信并注明出处。
 
 ## 6. 待实测
 
-- 以上 dsh 实测均在 CLI 0.1.5-rc.1 上进行（该 CLI 已卸载）。App 0.2.0-rc.2 上 doctor 已实测通过（当时引擎变量来自 `~/.dsh/.env`，现已改为 `engines.env`）；hook 未测，App 内置的桥接同样被 dsh-purge 改写。
-- 未经 dsh-purge 改写的 dsh 上，deny 是否生效；dsh-purge#80 有进展后复测。
-- `PostToolUse` 的 `additionalContext` 在三家的表现（元数据注入用）。
+- `PostToolUse` 的 `additionalContext` 在 Codex 中的表现（元数据注入用）。
 - dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。

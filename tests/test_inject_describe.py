@@ -113,6 +113,7 @@ class InjectDescribe(unittest.TestCase):
         out = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertEqual(out["hookEventName"], "UserPromptSubmit")
         self.assertIn("[gis-kit describe]", out["additionalContext"])
+        self.assertTrue(out["additionalContext"].startswith(hook.SOURCE_LINE))
         broken = run("not json")
         self.assertEqual((broken.returncode, broken.stdout), (0, ""))
 

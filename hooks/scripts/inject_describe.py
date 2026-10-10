@@ -21,6 +21,8 @@ DESCRIBE_TIMEOUT = 8
 FIELD_LIMIT = 30
 LAYER_LIMIT = 10
 STATE_TTL = 7 * 86400
+# Hosts may show additionalContext without saying where it came from; state the source as a fact.
+SOURCE_LINE = "来源：gis-plugin hook 在本机对下列文件实际运行 `gis-kit describe --json` 得到的元数据（每个文件在会话中只注入一次，文件变化后重新注入）。"
 
 
 def _texts(payload):
@@ -175,7 +177,7 @@ def run(payload, environ):
     if not cards:
         return None
     state_path.write_text(json.dumps(seen, ensure_ascii=False), encoding="utf-8")
-    return "\n\n".join(cards)
+    return SOURCE_LINE + "\n\n" + "\n\n".join(cards)
 
 
 def main():
