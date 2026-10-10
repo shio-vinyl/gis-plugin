@@ -57,6 +57,16 @@ hooks/scripts/                    标准库 Python
 
 引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。
 
+**版本号与更新**：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 `version` 保持一致（测试检查）。版本号相同时 CC 的 `claude plugin update` 视为已是最新、不会刷新安装副本（2026-10-10 实测），因此改动进入安装副本且影响行为（skills、hooks、清单）时随同一提交提版本：1.0 之前，删除或不兼容（如移除 skill、改变读取的约定版本）提 minor，其余提 patch；只改文档、测试、evals 不提。推送后更新各宿主：
+
+```bash
+claude plugin marketplace update gis-plugin
+claude plugin update gis-plugin@gis-plugin
+codex plugin add gis-plugin@gis-plugin
+```
+
+dsh 的软链与桥接直接指向本仓库，无需更新。
+
 dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patch` 叠加）：
 
 ```yaml
