@@ -19,7 +19,7 @@ SCHEMA_VERSION = 1
 TIMEOUT_SECONDS = 20
 STDERR_MAX_CHARS = 500
 # Contract versions the shell itself reads (hooks).
-SHELL_READS = {"describe": [1]}
+SHELL_READS = {"describe": [1], "semantics": [1], "sources": [1]}
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?$")

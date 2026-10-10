@@ -1,0 +1,4 @@
+{"type": "FeatureCollection", "features": [
+{"type": "Feature", "properties": {"f_a": 1200, "f_b": 85.5, "f_c": "A1"}, "geometry": {"type": "Polygon", "coordinates": [[[116.0, 39.0], [116.1, 39.0], [116.1, 39.1], [116.0, 39.1], [116.0, 39.0]]]}},
+{"type": "Feature", "properties": {"f_a": 3400, "f_b": 210.0, "f_c": "B2"}, "geometry": {"type": "Polygon", "coordinates": [[[116.1, 39.0], [116.2, 39.0], [116.2, 39.1], [116.1, 39.1], [116.1, 39.0]]]}}
+]}

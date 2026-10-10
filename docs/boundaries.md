@@ -31,9 +31,9 @@
 | 薄 skills | gis-view、gis-composer 各一份（gis-kit 用其仓库自带入口，见 §8）；参数以引擎 `--help` 为准 |
 | hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
-| `.mcp.json` | 只做登记，指向引擎自带的 MCP 子命令 |
+| `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
 | `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么 |
-| `evals/` | GIS 任务与标准答案，比较有无外壳的差别 |
+| `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
 | `adapters/`（以后） | 某个 harness 专用的界面适配（Claude mod、dsh 插件），保持很薄，不含业务逻辑 |
 
@@ -109,6 +109,8 @@ agent-skills   只保留非 GIS 入口
 - **约定版本规则**（2026-10-08）。兼容变更只加可选字段、读取方忽略未知字段；不兼容变更才升 `schema_version`；doctor 依 capabilities 声明配对检查读写版本。细则见 [contracts/README.md](../contracts/README.md#版本规则)。
 - **外壳暂不公开**（2026-10-08）。保持私有开发；以后若随 gis-kit 公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告，届时再定是否需要英文文档。
 - **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
+- **semantics 约定**（2026-10-10）。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
+- **约定只为已实现的一方定 Schema**（2026-10-10）。view、selection、review、scene-draft 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
 
 ## 9. 待定事项
 

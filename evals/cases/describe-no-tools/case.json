@@ -1,0 +1,9 @@
+{
+  "id": "describe-no-tools",
+  "title": "不调用工具即知道坐标系与要素数",
+  "prompt": "不调用任何工具，只根据你已经掌握的信息回答：data/pts.geojson 的坐标系和要素数各是什么？不知道就写 unknown，不要猜。最后单独输出一行 JSON，形如 {\"crs\": \"EPSG:代码 或 unknown\", \"feature_count\": 整数或 \"unknown\"}。",
+  "tools": [],
+  "checks": [
+    {"type": "answer_json", "expect": {"crs": "EPSG:4326", "feature_count": 3}}
+  ]
+}

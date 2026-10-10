@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "hooks" / "scripts" / "protect_sources.py"
 
+sys.path.insert(0, str(SCRIPT.parent))  # the hooks import their shared `_patterns` module
 spec = importlib.util.spec_from_file_location("protect_sources", SCRIPT)
 hook = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hook)

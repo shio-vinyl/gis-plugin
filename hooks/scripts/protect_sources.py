@@ -12,6 +12,9 @@ import shlex
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # importing the shared module must not leave __pycache__ in the plugin
+from _patterns import glob_regex  # noqa: E402
+
 REGISTRY = Path(".gis") / "sources.json"
 SCHEMA_VERSION = 1
 
@@ -39,30 +42,6 @@ class RegistryError(Exception):
     pass
 
 
-def _glob_regex(pattern):
-    out, i = [], 0
-    while i < len(pattern):
-        if pattern.endswith("/**") and i == len(pattern) - 3:
-            out.append("(?:/.*)?")  # `dir/**` also covers `dir` itself
-            i += 3
-        elif pattern.startswith("**/", i):
-            out.append("(?:.*/)?")
-            i += 3
-        elif pattern.startswith("**", i):
-            out.append(".*")
-            i += 2
-        elif pattern[i] == "*":
-            out.append("[^/]*")
-            i += 1
-        elif pattern[i] == "?":
-            out.append("[^/]")
-            i += 1
-        else:
-            out.append(re.escape(pattern[i]))
-            i += 1
-    return re.compile("".join(out) + r"\Z")
-
-
 def load_registry(path):
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
@@ -76,7 +55,7 @@ def load_registry(path):
     for p in patterns:
         if p.startswith("/") or ".." in Path(p).parts:
             raise RegistryError(f"模式须为相对路径且不含 ..：{p}")
-    return [(p, _glob_regex(p.rstrip("/"))) for p in patterns]
+    return [(p, glob_regex(p.rstrip("/"))) for p in patterns]
 
 
 def _candidates(rel):

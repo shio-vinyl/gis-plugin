@@ -1,0 +1,9 @@
+{
+  "id": "semantics-aggregate",
+  "title": "按声明的字段语义选择合并方式",
+  "prompt": "要把 data/towns.geojson 的乡镇按上级区划合并（dissolve）。不调用任何工具，只根据你已经掌握的信息判断 f_a、f_b、f_c 三个字段合并时各应如何处理。每个字段取 sum、area_weighted_mean、majority、unknown 之一，依据不足就写 unknown，不要按字段名猜。最后单独输出一行 JSON，形如 {\"f_a\": \"...\", \"f_b\": \"...\", \"f_c\": \"...\"}。",
+  "tools": [],
+  "checks": [
+    {"type": "answer_json", "expect": {"f_a": "sum", "f_b": "area_weighted_mean", "f_c": "majority"}}
+  ]
+}

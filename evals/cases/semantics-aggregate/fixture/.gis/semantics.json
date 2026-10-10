@@ -1,0 +1,11 @@
+{
+  "contract": "semantics",
+  "schema_version": 1,
+  "datasets": [
+    {"match": "data/towns.geojson", "fields": {
+      "f_a": {"kind": "total", "unit": "人"},
+      "f_b": {"kind": "density", "unit": "人/km²"},
+      "f_c": {"kind": "category"}
+    }}
+  ]
+}

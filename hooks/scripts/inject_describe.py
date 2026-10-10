@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit / PostToolUse hook: add gis-kit describe cards for GIS files mentioned. Standard library only.
+"""UserPromptSubmit / PostToolUse hook: add metadata cards for GIS files mentioned. Standard library only.
 
-The shell never reads GIS data: cards come from `$GIS_KIT_CMD describe <path> --json`. Each file is
-described once per session until its size or mtime changes. Cards state facts, never instructions.
+The shell never reads GIS data: cards come from `$GIS_KIT_CMD describe <path> --json`, plus the user's
+declarations in the nearest `.gis/semantics.json`. Each file is carded once per session until the file or
+its declarations change. Cards state facts, never instructions.
 """
 
 import json
@@ -14,6 +15,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # importing the shared module must not leave __pycache__ in the plugin
+from _patterns import glob_regex  # noqa: E402
+
 SUFFIXES = ("gpkg", "shp", "geojson", "fgb", "gml", "kml", "gdb", "tif", "tiff", "vrt", "img", "asc", "jp2", "nc")
 PATH_RE = re.compile(r"([^\s\"'`<>|;,，。、：:（）()\[\]{}]+\.(?:" + "|".join(SUFFIXES) + r"))(?![A-Za-z0-9_])", re.I)
 MAX_FILES = 3
@@ -22,7 +26,10 @@ FIELD_LIMIT = 30
 LAYER_LIMIT = 10
 STATE_TTL = 7 * 86400
 # Hosts may show additionalContext without saying where it came from; state the source as a fact.
-SOURCE_LINE = "来源：gis-plugin hook 在本机对下列文件实际运行 `gis-kit describe --json` 得到的元数据（每个文件在会话中只注入一次，文件变化后重新注入）。"
+SOURCE_LINE = ("来源：gis-plugin hook。`[gis-kit describe]` 段是在本机对文件实际运行 `gis-kit describe --json` 得到的元数据；"
+               "`[semantics]` 段转述用户在 `.gis/semantics.json` 中的声明。每个文件在会话中只注入一次，文件或声明变化后重新注入。")
+SEMANTICS = Path(".gis") / "semantics.json"
+KINDS = {"total": "总量", "density": "密度", "ratio": "比率", "category": "类别"}
 
 
 def _texts(payload):
@@ -136,6 +143,94 @@ def render(card):
     return "\n".join(lines)
 
 
+class SemanticsError(Exception):
+    pass
+
+
+def find_semantics(path):
+    """The nearest `.gis/semantics.json` above a data path, or None."""
+    for base in path.parents:
+        if (base / SEMANTICS).is_file():
+            return base / SEMANTICS
+    return None
+
+
+def _meanings(table, where, bands=False):
+    if not isinstance(table, dict) or not table:
+        raise SemanticsError(f"{where} 须为非空对象")
+    for key, meaning in table.items():
+        if bands and not re.fullmatch(r"[1-9][0-9]*", key):
+            raise SemanticsError(f"{where} 的键须为从 1 开始的波段号：{key}")
+        if not isinstance(meaning, dict) or meaning.get("kind") not in KINDS:
+            raise SemanticsError(f"{where}.{key}.kind 须为 {'/'.join(KINDS)} 之一")
+        for name in ("unit", "note"):
+            if name in meaning and not (isinstance(meaning[name], str) and meaning[name].strip()):
+                raise SemanticsError(f"{where}.{key}.{name} 须为非空字符串")
+    return table
+
+
+def load_semantics(registry):
+    try:
+        doc = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SemanticsError(f"无法读取：{exc}") from None
+    if not isinstance(doc, dict) or doc.get("contract") != "semantics" or doc.get("schema_version") != 1:
+        raise SemanticsError("须为 contract=semantics、schema_version=1 的对象")
+    datasets = doc.get("datasets")
+    if not isinstance(datasets, list) or not datasets:
+        raise SemanticsError("datasets 须为非空数组")
+    entries = []
+    for i, entry in enumerate(datasets):
+        where = f"datasets[{i}]"
+        match = entry.get("match") if isinstance(entry, dict) else None
+        if not isinstance(match, str) or not match.strip() or match.startswith("/") or ".." in Path(match).parts:
+            raise SemanticsError(f"{where}.match 须为相对路径模式且不含 ..")
+        if "fields" not in entry and "bands" not in entry:
+            raise SemanticsError(f"{where} 须含 fields 或 bands")
+        layer = entry.get("layer")
+        if layer is not None and not (isinstance(layer, str) and layer.strip()):
+            raise SemanticsError(f"{where}.layer 须为非空字符串")
+        fields = _meanings(entry["fields"], f"{where}.fields") if "fields" in entry else {}
+        bands = _meanings(entry["bands"], f"{where}.bands", bands=True) if "bands" in entry else {}
+        entries.append((glob_regex(match.rstrip("/")), layer, fields, bands))
+    return entries
+
+
+def _meaning(meaning):
+    text = KINDS[meaning["kind"]] + f"（{meaning['kind']}）"
+    if meaning.get("unit"):
+        text += f"，单位 {meaning['unit']}"
+    if meaning.get("note"):
+        text += f"；用户备注“{meaning['note'][:200]}”"
+    return text
+
+
+def semantics_card(path, registry):
+    """Declarations matching one data path, later entries overriding earlier ones; None when nothing matches."""
+    try:
+        entries = load_semantics(registry)
+    except SemanticsError as exc:
+        return f"[semantics] {path} — {registry} 无效：{exc}"
+    rel = path.relative_to(registry.parent.parent).as_posix()
+    declared = {}
+    for regex, layer, fields, bands in entries:
+        if not regex.match(rel):
+            continue
+        for name, meaning in fields.items():
+            declared[("field", layer, name)] = meaning
+        for band, meaning in bands.items():
+            declared[("band", None, int(band))] = meaning
+    if not declared:
+        return None
+    lines = [f"[semantics] {path} — 用户声明于 {registry}"]
+    for (what, layer, name), meaning in sorted(declared.items(), key=lambda item: (item[0][0], item[0][1] or "", str(item[0][2]))):
+        if what == "band":
+            lines.append(f"· 波段 {name}：{_meaning(meaning)}")
+        else:
+            lines.append(f"· {f'图层 {layer} ' if layer else ''}字段 {name}：{_meaning(meaning)}")
+    return "\n".join(lines)
+
+
 def describe(command, path):
     try:
         proc = subprocess.run(command + ["describe", str(path), "--json"], capture_output=True, text=True,
@@ -153,8 +248,7 @@ def describe(command, path):
 
 def run(payload, environ):
     raw = engine_settings(environ).get("GIS_KIT_CMD", "").strip()
-    if not raw:
-        return None
+    command = shlex.split(raw) if raw else None
     paths = candidates(payload)
     if not paths:
         return None
@@ -163,16 +257,18 @@ def run(payload, environ):
         seen = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         seen = {}
-    command, cards = shlex.split(raw), []
+    cards = []
     for path in paths:
         if len(cards) >= MAX_FILES:
             break
-        revision = _revision(path)
+        registry = find_semantics(path)
+        revision = [_revision(path), _revision(registry) if registry else None]
         if seen.get(str(path)) == revision:
             continue
-        card = describe(command, path)
-        if card:
-            cards.append(card)
+        parts = [describe(command, path) if command else None, semantics_card(path, registry) if registry else None]
+        parts = [part for part in parts if part]
+        if parts:
+            cards.append("\n".join(parts))
             seen[str(path)] = revision
     if not cards:
         return None

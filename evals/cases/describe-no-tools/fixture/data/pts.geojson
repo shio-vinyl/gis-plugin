@@ -1,0 +1,5 @@
+{"type": "FeatureCollection", "features": [
+{"type": "Feature", "properties": {"name": "p1", "pop": 12}, "geometry": {"type": "Point", "coordinates": [116.40, 39.90]}},
+{"type": "Feature", "properties": {"name": "p2", "pop": 30}, "geometry": {"type": "Point", "coordinates": [116.45, 39.92]}},
+{"type": "Feature", "properties": {"name": "p3", "pop": 7}, "geometry": {"type": "Point", "coordinates": [116.50, 39.95]}}
+]}

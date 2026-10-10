@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gis-plugin/contracts/semantics.schema.json",
+  "title": "GIS field semantics",
+  "description": "`.gis/semantics.json` placed with the data: what the user declares fields and bands to mean. Entries are matched in order; a later entry overrides an earlier one for the same field or band.",
+  "type": "object",
+  "required": ["contract", "schema_version", "datasets"],
+  "properties": {
+    "contract": {
+      "const": "semantics"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "datasets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/dataset" }
+    }
+  },
+  "$defs": {
+    "dataset": {
+      "type": "object",
+      "required": ["match"],
+      "anyOf": [
+        { "required": ["fields"] },
+        { "required": ["bands"] }
+      ],
+      "properties": {
+        "match": {
+          "description": "Glob pattern relative to the directory holding `.gis/`, same rules as `sources`: `*` and `?` stay within one path segment, `**` spans segments.",
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "anyOf": [
+              { "pattern": "^/" },
+              { "pattern": "(^|/)\\.\\.(/|$)" }
+            ]
+          }
+        },
+        "layer": {
+          "description": "Vector layer the fields belong to; omitted means every layer of the matched dataset.",
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/$defs/meaning" }
+        },
+        "bands": {
+          "description": "Raster bands keyed by 1-based band number.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[1-9][0-9]*$" },
+          "additionalProperties": { "$ref": "#/$defs/meaning" }
+        }
+      }
+    },
+    "meaning": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "description": "Same values as gis-kit `quantity_type` / `quantity`: total (extensive, adds up over area), density (per unit area), ratio (dimensionless or per-unit rate, not per area), category (class codes).",
+          "enum": ["total", "density", "ratio", "category"]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "description": "User's own short remark, passed on verbatim as a quotation.",
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}

@@ -1,17 +1,17 @@
 # 约定清单
 
-引擎之间、引擎与外壳之间交换的文件格式。每种格式最终包含一份 JSON Schema（`<name>.schema.json`）和本页中的说明，均带 `schema_version`。下表为草案，均未定稿。
+引擎之间、引擎与外壳之间交换的文件格式。每种格式最终包含一份 JSON Schema（`<name>.schema.json`）和本页中的说明，均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。
 
 | 约定 | 用途 | 产出方 | 读取方 | 状态 |
 |---|---|---|---|---|
 | capabilities | 引擎自报版本与能力，供 doctor 和 hooks 判断可用性 | 各引擎（`capabilities --json` 子命令） | 外壳 | 草案，已有 Schema，见下文 |
 | describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-kit（`gis.py describe`） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | sources | 登记受保护的源数据，外壳 hook 拦截对其写入 | 用户（`.gis/sources.json`，跟随数据） | 外壳 hooks | 草案，已有 Schema，见下文 |
-| semantics | 用户声明的字段语义：总量/密度/比率/类别、单位 | 用户（跟随数据或项目） | gis-kit、gis-view、外壳 hooks | 草案 |
-| view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 草案 |
-| selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 草案 |
-| review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 草案 |
-| scene-draft | 由查看状态导出的 Scene 草稿 | gis-view | gis-composer | 草案；样式契约不同，只保证草稿 |
+| semantics | 用户声明的字段与波段语义：总量/密度/比率/类别、单位 | 用户（`.gis/semantics.json`，跟随数据） | 外壳 hooks（gis-kit、gis-view 尚未读取） | 草案，已有 Schema，见下文 |
+| view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
+| selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
+| review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
+| scene-draft | 由查看状态导出的 Scene 草稿 | gis-view | gis-composer | 暂缓：无产出方，见下文；样式契约不同，只保证草稿 |
 
 ## 共同规则
 
@@ -25,7 +25,7 @@
 1. **兼容变更不升版本**：只有“新增可选字段”算兼容。读取方必须忽略不认识的字段，Schema 不禁止额外字段。
 2. **不兼容变更才把 `schema_version` 加 1**：删除字段、改名、改含义、新增必填字段。
 3. **读取方遇到不认识的版本时拒绝并说明**，不猜测。
-4. **协商**：各引擎在 capabilities 的 `contracts` 中声明读写的版本；`gis-doctor` 把每个写入方与每个读取方（含外壳自身，见下）配对，找不到共同版本时报错并指出是哪两方。外壳目前读取 `describe` v1。
+4. **协商**：各引擎在 capabilities 的 `contracts` 中声明读写的版本；`gis-doctor` 把每个写入方与每个读取方（含外壳自身，见下）配对，找不到共同版本时报错并指出是哪两方。外壳目前读取 `describe`、`semantics`、`sources` 各 v1（`gis_doctor.py` 的 `SHELL_READS`）。
 5. **过渡**：升级时产出方至少在一个版本周期内仍能按旧版本写出（例如 `--schema-version N`），读取方同时读新旧两版。外壳不做格式迁移，迁移由产出该格式的引擎负责。
 6. **capabilities 本身只做兼容变更**，作为协商起点保持 v1。
 
@@ -102,3 +102,37 @@ Schema：[describe.schema.json](describe.schema.json)（`schema_version: 1`）�
 - `warnings` 只列确定性事实（`crs_missing`、`nodata_unset`），不给建议。
 - `revision`（大小与修改时间）用于判断卡片是否过期；hook 在同一会话内对同一 revision 只注入一次。
 - 读取方忽略不认识的字段。
+
+## semantics
+
+Schema：[semantics.schema.json](semantics.schema.json)（`schema_version: 1`）。由用户写在数据所在目录的 `.gis/semantics.json`，声明字段或波段“是什么量”；外壳 hook `hooks/scripts/inject_describe.py` 在注入元数据卡片时一并转述。
+
+```json
+{
+  "contract": "semantics",
+  "schema_version": 1,
+  "datasets": [
+    {"match": "census/*.gpkg", "fields": {"pop": {"kind": "total", "unit": "人"}, "code": {"kind": "category"}}},
+    {"match": "census/towns.gpkg", "layer": "towns", "fields": {"dens": {"kind": "density", "unit": "人/km²"}}},
+    {"match": "rain/*.tif", "bands": {"1": {"kind": "density", "unit": "mm"}}}
+  ]
+}
+```
+
+- `kind` 取值与 gis-kit 参数中的 `quantity_type`（矢量）和 `quantity`（栅格）相同：`total` 随面积可加，`density` 为单位面积量，`ratio` 为不按面积的比率，`category` 为类别代码。模型可据此直接填写 gis-kit 参数。
+- `match` 与 `sources` 的模式规则相同，相对于包含 `.gis/` 的目录；`layer` 省略时适用于所有图层；`bands` 以 1 起的波段号为键。
+- 按 `datasets` 顺序合并，后者覆盖前者对同一字段或波段的声明。
+- hook 从数据文件所在目录逐级向上，只用最近的一份 `.gis/semantics.json`；文件无效时注入“无效”及原因，不猜测。
+- `note` 是用户自己的简短备注，hook 以引号原样转述；不写给模型的指令。
+- 只写声明，不由外壳推断；没有声明的字段不出现在卡片中。
+
+## 暂缓的约定
+
+view、selection、review、scene-draft 目前没有任何引擎产出（2026-10-10 核对）：
+
+- selection：gis-view 的选择集只在服务进程内存中（`fids`、`revision` 等），不落文件；复制到剪贴板的“观察上下文”不是约定格式，且没有 `revision`。
+- review：gis-view 不写审阅记录；gis-kit 的人工审阅（`raster-annotate.py feedback`）有自己的格式，以 gis-kit 仓库为准。
+- view：没有引擎写出供 gis-view 打开的查看描述；gis-view 的 `session.json` 是其内部文件。
+- scene-draft：gis-view 尚无 Scene 导出；gis-kit 交给 gis-composer 的是普通 Scene 与显示数据（见 gis-kit `references/composer-display.md`）。
+
+等第一个产出方实现时，再按其实际字段定 Schema，避免先写出无人实现、随后漂移的格式。

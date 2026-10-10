@@ -13,6 +13,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "hooks" / "scripts" / "inject_describe.py"
 
+sys.path.insert(0, str(SCRIPT.parent))  # the hooks import their shared `_patterns` module
 spec = importlib.util.spec_from_file_location("inject_describe", SCRIPT)
 hook = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hook)
@@ -99,11 +100,62 @@ class InjectDescribe(unittest.TestCase):
         for i in range(5):
             (self.data / f"l{i}.gpkg").write_text("x", encoding="utf-8")
         context = hook.run(self.prompt(" ".join(f"data/l{i}.gpkg" for i in range(5))), self.env)
-        self.assertEqual(context.count("[gis-kit describe]"), hook.MAX_FILES)
+        self.assertEqual(context.count("[gis-kit describe] "), hook.MAX_FILES)
         broken = hook.run(self.prompt("data/broken.shp"), self.env)
         self.assertIn("无法读取", broken)
         self.assertIsNone(hook.run(self.prompt("data/dem.tif"), {k: v for k, v in self.env.items() if k != "GIS_KIT_CMD"}))
         self.assertIsNone(hook.run(self.prompt("没有路径"), self.env))
+
+    def write_semantics(self, doc):
+        (self.tmp / ".gis").mkdir(exist_ok=True)
+        (self.tmp / ".gis" / "semantics.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+    def test_semantics_declarations(self):
+        self.write_semantics({"contract": "semantics", "schema_version": 1, "datasets": [
+            {"match": "data/*.gpkg", "fields": {"f_a": {"kind": "total", "unit": "人"}, "f_b": {"kind": "ratio"}}},
+            {"match": "data/地类图斑.gpkg", "layer": "地类图斑",
+             "fields": {"f_b": {"kind": "density", "unit": "人/km²", "note": "按图斑面积"}}},
+            {"match": "data/dem.tif", "bands": {"1": {"kind": "density", "unit": "mm"}}},
+            {"match": "other/**", "fields": {"x": {"kind": "category"}}},
+        ]})
+        context = hook.run(self.prompt("data/地类图斑.gpkg 和 data/dem.tif"), self.env)
+        self.assertIn(f"[semantics] {self.data / '地类图斑.gpkg'} — 用户声明于 {self.tmp / '.gis' / 'semantics.json'}", context)
+        self.assertIn("· 字段 f_a：总量（total），单位 人", context)
+        self.assertIn("· 字段 f_b：比率（ratio）", context)
+        self.assertIn("· 图层 地类图斑 字段 f_b：密度（density），单位 人/km²；用户备注“按图斑面积”", context)
+        self.assertIn("· 波段 1：密度（density），单位 mm", context)
+        self.assertNotIn("字段 x", context)
+        self.assertNotRegex(context.replace("按图斑面积", ""), "请|应该|建议")
+        # each file's describe card is followed by its own declarations
+        gpkg, tif = context.split("\n\n")[1:]
+        self.assertTrue(gpkg.startswith("[gis-kit describe]") and "[semantics]" in gpkg)
+        self.assertTrue(tif.startswith("[gis-kit describe]") and "波段 1" in tif)
+
+    def test_semantics_without_engine_and_on_change(self):
+        doc = {"contract": "semantics", "schema_version": 1,
+               "datasets": [{"match": "data/dem.tif", "bands": {"1": {"kind": "total"}}}]}
+        self.write_semantics(doc)
+        no_kit = {k: v for k, v in self.env.items() if k != "GIS_KIT_CMD"}
+        payload = self.prompt("data/dem.tif")
+        context = hook.run(payload, no_kit)
+        self.assertIn("[semantics]", context)
+        self.assertNotIn("[gis-kit describe] ", context)
+        self.assertIsNone(hook.run(payload, no_kit))
+        doc["datasets"][0]["bands"]["1"]["unit"] = "t"
+        self.write_semantics(doc)
+        os.utime(self.tmp / ".gis" / "semantics.json", (1, 1))
+        self.assertIn("单位 t", hook.run(payload, no_kit))
+        self.assertIsNone(hook.run(self.prompt("data/地类图斑.gpkg"), no_kit))  # nothing declared, no engine
+
+    def test_invalid_semantics_reported(self):
+        self.write_semantics({"contract": "semantics", "schema_version": 1,
+                              "datasets": [{"match": "../x", "fields": {"a": {"kind": "total"}}}]})
+        context = hook.run(self.prompt("data/dem.tif"), self.env)
+        self.assertIn("[gis-kit describe] ", context)
+        self.assertIn("semantics.json 无效：datasets[0].match 须为相对路径模式且不含 ..", context)
+        self.write_semantics({"contract": "semantics", "schema_version": 1,
+                              "datasets": [{"match": "data/*", "fields": {"a": {"kind": "mean"}}}]})
+        self.assertIn("kind 须为 total/density/ratio/category 之一", hook.run(self.prompt("data/dem.tif", "s9"), self.env))
 
     def test_cli_output_and_resilience(self):
         def run(stdin):
