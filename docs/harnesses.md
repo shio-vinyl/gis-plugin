@@ -66,6 +66,8 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
         pluginRoot: <repo>
 ```
 
+桥接一个实例只读一个 `configPath`。已有自己的 CC hooks 时不必合并文件，在同一个 `insert` 下再挂一个实例（另起 `id`，`configPath` 指向自己的 `settings.json` 或 `hooks.json`）即可，两份互不影响。
+
 dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中的哨兵值，使用户自己 hook 的 deny 永久失效（上游 issue [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80)）。**1.1.66** 起可在清洗页关掉：设置文件 `~/.dsh/dsh-purge/hooks-deny.json` 写 `{"hooksDenyBypass": false}`，插件同时排除补丁 30/31/64/65，并把宿主文件写回官方形态。
 
 ## 5. 实测记录（2026-10-08）
@@ -80,8 +82,9 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - 拦截：`edit` 改 `raw/a.csv`、`bash` 执行 `printf ... > raw/a.csv` 都返回 hook 的拒绝原因（工具结果 `status: error`），文件哈希不变；模型转述了登记位置并拒绝绕过。
   - 注入：提示中提到 `data/pts.geojson` 时（`UserPromptSubmit`），模型不调用工具即答出字段、EPSG:4326 与要素数；提示不含完整路径、仅 `bash` 命令带上路径时（`PostToolUse`），卡片同样进入上下文。
   - 观察：`PostToolUse` 卡片出现在工具结果之后，DeepSeek 模型一次把它当作“非自己工具产生的未验证内容”，只转述、不采信。之后在卡片前加一行事实性来源说明（gis-plugin hook 实际运行 `gis-kit describe --json` 所得），同一场景复测 3 次均直接采信并注明出处。
+- Codex `PostToolUse` 注入（2026-10-10，CLI 0.160.0）：在隔离 `CODEX_HOME` 中装当前版本，hook 信任沿用用户已有的 `hooks.state` 记录（`hooks.json` 未变，哈希一致），`codex exec -s read-only` 跑 3 次。提示不含完整路径、仅 shell 命令带上路径，3 次都在 `PostToolUse` 收到卡片，模型不再调用工具即答出字段、EPSG:4326 与要素数，并注明来自注入的元数据。
+- dsh 两个桥接实例并存（2026-10-10）：一个挂 gis-plugin，一个挂模拟的用户 CC hooks（`UserPromptSubmit` 注入标记、`PreToolUse` 写日志）。用户的注入与 gis-plugin 的拦截同时生效；未被拦截的 `bash` 调用两边都执行，被 gis-plugin deny 的调用不再执行用户的 `PreToolUse`（日志无记录），与“deny 即终止”的语义一致。
 
 ## 6. 待实测
 
-- `PostToolUse` 的 `additionalContext` 在 Codex 中的表现（元数据注入用）。
-- dsh 桥接只读一个 `configPath`；用户已有自己的 CC hooks 时，需合并或挂两个桥接实例。
+暂无。
