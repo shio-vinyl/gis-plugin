@@ -5,7 +5,7 @@
 | 约定 | 用途 | 产出方 | 读取方 | 状态 |
 |---|---|---|---|---|
 | capabilities | 引擎自报版本与能力，供 doctor 和 hooks 判断可用性 | 各引擎（`capabilities --json` 子命令） | 外壳 | 草案，已有 Schema，见下文 |
-| describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-kit（`gis.py describe`） | 外壳 hooks | 草案，已有 Schema，见下文 |
+| describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-kit（`gis.py describe`） | 外壳 hooks | 草案，Schema 由 gis-kit 维护，见下文 |
 | sources | 登记受保护的源数据，外壳 hook 拦截对其写入 | 用户（`.gis/sources.json`，跟随数据） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | semantics | 用户声明的字段与波段语义：总量/密度/比率/类别、单位 | 用户（`.gis/semantics.json`，跟随数据） | 外壳 hooks（gis-kit、gis-view 尚未读取） | 草案，已有 Schema，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
@@ -94,14 +94,12 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## describe
 
-Schema：[describe.schema.json](describe.schema.json)（`schema_version: 1`）。产出方为 gis-kit 的 `gis.py describe <path> --json`；外壳 hook `hooks/scripts/inject_describe.py` 读取后转成文字卡片注入对话。
+产出方为 gis-kit 的 `gis.py describe <path> --json`，格式与字段说明由 gis-kit 维护：[describe.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/describe.schema.json)、[harness.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/harness.md)（`schema_version: 1`）。本仓库不保留副本。
 
-- 只读文件头与系统表，不读要素或像元；要素数或范围需扫描才能得到时为 `null`。
-- 矢量给出图层（最多 20 个，`layer_count` 为总数）、几何类型、要素数、CRS、范围、字段（最多 50 个，`field_count` 为总数）；栅格给出尺寸、波段、数据类型、逐波段 NoData（NaN 记为 `"nan"`，未设置为 `null`）、分辨率、CRS、范围。
-- `crs` 含 `id`（如 `EPSG:4490`，无法识别时为 `null`）、`name`、`geographic`、`units`；没有 CRS 时整个为 `null`。
-- `warnings` 只列确定性事实（`crs_missing`、`nodata_unset`），不给建议。
-- `revision`（大小与修改时间）用于判断卡片是否过期；hook 在同一会话内对同一 revision 只注入一次。
-- 读取方忽略不认识的字段。
+外壳 hook `hooks/scripts/inject_describe.py` 作为读取方：
+
+- 只认 `contract: describe`、`schema_version: 1`，其它版本不注入；忽略不认识的字段。
+- 把卡片转成文字注入对话；按文件大小与修改时间，同一会话内同一文件只注入一次。
 
 ## semantics
 

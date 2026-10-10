@@ -19,16 +19,17 @@
 规则：
 
 1. **引擎之间只通过文件衔接**，不互相调用 CLI，不共享代码。
-2. **约定是格式，谁都可以读写**；格式说明只在 `contracts/` 写一处，引擎仓库引用而不复制。多个引擎读同一格式不算第二份引擎。
+2. **约定是格式，谁都可以读写**；格式说明只写一处，由产出方维护：引擎产出的约定（如 gis-kit 的 describe）写在该引擎仓库，只涉及外壳的约定（capabilities、sources、semantics）写在 `contracts/`，`contracts/README.md` 统一索引。多个引擎读同一格式不算第二份引擎。
 3. **跨引擎的事放集成层**：元数据注入、源数据保护等与多个引擎有关、又不属于任何一个的能力。
 4. **外壳不读数据**：需要元数据时调用引擎 CLI。
+5. **引擎脱离外壳与彼此仍完整可用**：每个引擎及其 skill 入口，在不装外壳、不装其它引擎时都能完整使用。约定文件只作可选的输入与输出，缺少产出方时读取方照常工作；外壳只增加跨引擎能力（保护、注入、诊断），不成为任何引擎的前提。
 
 ## 2. 外壳放什么
 
 | 内容 | 说明 |
 |---|---|
 | 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
-| 薄 skills | gis-view、gis-composer 各一份（gis-kit 用其仓库自带入口，见 §8）；参数以引擎 `--help` 为准 |
+| skills | 只有 `gis-doctor`；各引擎的入口在其仓库根目录的 `SKILL.md`（见 §8） |
 | hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
@@ -85,7 +86,7 @@
 2. 能自报版本与能力（通过 `capabilities --json` 子命令，格式见 `contracts/`）；
 3. 读写文件遵守 `contracts/` 的格式。
 
-语言、环境、仓库位置不限。新增引擎 = 新增一份薄 skill 和一行配置，不改其它引擎。
+语言、环境、仓库位置不限。新增引擎 = 引擎仓库自带 skill 入口，外壳在 doctor 中加一行配置，不改其它引擎。
 
 ## 7. 仓库划分
 
@@ -97,20 +98,24 @@ gis-plugin     外壳（本仓库，私有）
 agent-skills   只保留非 GIS 入口
 ```
 
-入口只能有一份。gis-kit 的入口留在 gis-kit 仓库；gis-view 与 gis-composer 的入口已于 2026-10-08 从 agent-skills 迁入本仓库 `skills/`，原处移除。
+入口只能有一份，放在各引擎仓库根目录的 `SKILL.md`，仓库本身即 skill 目录。gis-view 与 gis-composer 的入口曾于 2026-10-08 从 agent-skills 迁入本仓库，2026-10-10 移回各自仓库（见 §8）。
 
 ## 8. 已定事项
 
-- **gis-kit 入口不进外壳**（2026-10-08）。gis-kit 已公开，仓库自带的 SKILL.md 是唯一入口，用户照旧独立安装。外壳不含 gis-kit skill，只提供跨引擎能力，并在 `/gis-doctor` 中检查 gis-kit 是否已安装、版本是否兼容。因此外壳的薄 skills 只有 gis-view 与 gis-composer 两份。
+- **gis-kit 入口不进外壳**（2026-10-08）。gis-kit 已公开，仓库自带的 SKILL.md 是唯一入口，用户照旧独立安装。外壳不含 gis-kit skill，只提供跨引擎能力，并在 `/gis-doctor` 中检查 gis-kit 是否已安装、版本是否兼容。
 - **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，可用 `GIS_PLUGIN_PYTHON` 覆盖（hooks 已接入，CC 与 Codex 实测）；脚本只用标准库。
 - **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
-- **引擎位置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD` 写在共用文件 `~/.config/gis-plugin/engines.env`，doctor、skills 启动脚本与 hooks 都读取；同名环境变量优先。不用各宿主各自的配置（Codex 的 `shell_environment_policy` 不传给 hook），也不用 CC 的 userConfig。hook 解释器为 `GIS_PLUGIN_PYTHON`（只能来自环境变量）。多宿主适配见 [harnesses.md](harnesses.md)。
+- **引擎位置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD` 写在共用文件 `~/.config/gis-plugin/engines.env`，doctor 与 hooks 读取；同名环境变量优先。不用各宿主各自的配置（Codex 的 `shell_environment_policy` 不传给 hook），也不用 CC 的 userConfig。hook 解释器为 `GIS_PLUGIN_PYTHON`（只能来自环境变量）。多宿主适配见 [harnesses.md](harnesses.md)。
 - **元数据卡片由 gis-kit 产出**（2026-10-08）。原定 gis-view；改为最基础、最常安装的 gis-kit，使注入 hook 在任何场景都可用。外壳仍不读数据，经 `GIS_KIT_CMD describe` 获取。
 - **约定版本规则**（2026-10-08）。兼容变更只加可选字段、读取方忽略未知字段；不兼容变更才升 `schema_version`；doctor 依 capabilities 声明配对检查读写版本。细则见 [contracts/README.md](../contracts/README.md#版本规则)。
 - **外壳暂不公开**（2026-10-08）。保持私有开发；以后若随 gis-kit 公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告，届时再定是否需要英文文档。
 - **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
 - **semantics 约定**（2026-10-10）。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
 - **约定只为已实现的一方定 Schema**（2026-10-10）。view、selection、review、scene-draft 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
+
+- **引擎脱离外壳可用**（2026-10-10）。确立 §1 第 5 条，并据此纠正两处：
+  - gis-view、gis-composer 的 skill 入口移回各自仓库根目录的 `SKILL.md`，直接调用本仓库 CLI，不再经由外壳的启动脚本与 `engines.env`；推翻 2026-10-08 的迁入决定。代价是安装时每个引擎各装一次。
+  - 约定说明改由产出方维护：describe 的 Schema 与字段说明移到公开的 gis-kit（`references/describe.schema.json`），外壳不再保留副本；gis-kit 文档中 gis-plugin 只作为读取方出现。
 
 ## 9. 待定事项
 

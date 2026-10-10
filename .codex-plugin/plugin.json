@@ -1,7 +1,7 @@
 {
   "name": "gis-plugin",
   "version": "0.1.0",
-  "description": "Thin integration shell for the GIS engines (gis-kit, gis-view, gis-composer): entry skills, cross-engine hooks, file contracts and diagnostics.",
+  "description": "Thin integration shell for the GIS engines (gis-kit, gis-view, gis-composer): cross-engine hooks, file contracts and diagnostics. Each engine ships its own skill.",
   "author": {
     "name": "shio_vinyl"
   },
@@ -13,7 +13,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "GIS Plugin",
-    "shortDescription": "GIS engine entry points and diagnostics",
+    "shortDescription": "GIS cross-engine hooks and diagnostics",
     "developerName": "shio_vinyl",
     "category": "Developer Tools",
     "capabilities": [
