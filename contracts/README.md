@@ -35,7 +35,7 @@ Schema：[capabilities.schema.json](capabilities.schema.json)（`schema_version:
 
 ### 调用约定
 
-- 外壳运行 `<engine> capabilities --json`，引擎入口由用户在 userConfig 中配置。
+- 外壳运行 `<engine> capabilities --json`，引擎入口取自 `GIS_*_CMD`（共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先，见 [boundaries.md](../docs/boundaries.md#8-已定事项)）。
 - 成功：退出码 0，stdout 只输出一个符合 Schema 的 JSON 对象；日志写 stderr。
 - 失败：退出码非 0，外壳将其报告为“引擎不可用”，并附 stderr 摘要。
 - 子命令不读用户 GIS 数据、不写文件、不联网，应在数秒内返回。

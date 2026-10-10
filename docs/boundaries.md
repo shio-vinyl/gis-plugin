@@ -27,7 +27,7 @@
 
 | 内容 | 说明 |
 |---|---|
-| 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置由环境变量配置，见 [harnesses.md](harnesses.md) |
+| 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
 | 薄 skills | gis-view、gis-composer 各一份（gis-kit 用其仓库自带入口，见 §8）；参数以引擎 `--help` 为准 |
 | hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
