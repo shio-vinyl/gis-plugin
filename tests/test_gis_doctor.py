@@ -98,6 +98,15 @@ class FakeEngines(unittest.TestCase):
         old = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"describe": {"write": [2]}})}
         self.assertEqual(doctor.check_contracts([old])[0]["status"], "error")
 
+    def test_display_contracts_pair_kit_with_composer(self):
+        kit = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"class-scheme": {"write": [1]}, "display-raster": {"write": [1]}})}
+        composer = {"engine": "gis-composer", "capabilities": caps(engine="gis-composer", contracts={"class-scheme": {"read": [1]}, "display-raster": {"read": [1]}})}
+        pairs = {(p["contract"], p["writer"], p["reader"]): p for p in doctor.check_contracts([kit, composer])}
+        self.assertEqual(pairs[("class-scheme", "gis-kit", "gis-composer")]["status"], "ok")
+        self.assertEqual(pairs[("display-raster", "gis-kit", "gis-composer")]["message"], "v1")
+        newer = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"class-scheme": {"write": [2]}})}
+        self.assertEqual(doctor.check_contracts([newer, composer])[0]["status"], "error")
+
     def test_engine_mismatch(self):
         result = self.check(self.engine("mismatch", json.dumps(caps(engine="gis-kit"))))
         self.assertEqual(result["status"], "error")

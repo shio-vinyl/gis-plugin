@@ -8,6 +8,8 @@
 | describe | 给 Agent 的元数据卡片：CRS 与单位、范围、几何/波段、字段、NoData、确定性警告 | gis-kit（`gis.py describe`） | 外壳 hooks | 草案，Schema 由 gis-kit 维护，见下文 |
 | sources | 登记受保护的源数据，外壳 hook 拦截对其写入 | 用户（`.gis/sources.json`，跟随数据） | 外壳 hooks | 草案，已有 Schema，见下文 |
 | semantics | 用户声明的字段与波段语义：总量/密度/比率/类别、单位 | 用户（`.gis/semantics.json`，跟随数据） | 外壳 hooks（gis-kit、gis-view 尚未读取） | 草案，已有 Schema，见下文 |
+| class-scheme | 分类方案：每一类的代码或断点、标签、分组、计数、单位与状态，不含颜色 | gis-kit（`scheme.py`、`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
+| display-raster | 不上色的 EPSG:3857 显示栅格：类别序号或 24 位数值编码、四角坐标、所用方案 | gis-kit（`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
 | review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
@@ -100,6 +102,14 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 - 只认 `contract: describe`、`schema_version: 1`，其它版本不注入；忽略不认识的字段。
 - 把卡片转成文字注入对话；按文件大小与修改时间，同一会话内同一文件只注入一次。
+
+## class-scheme 与 display-raster
+
+产出方是 gis-kit，格式说明由 gis-kit 维护：[class-scheme.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/class-scheme.schema.json)、[display-raster.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/display-raster.schema.json)、[composer-display.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/composer-display.md)（均为 `schema_version: 1`）。本仓库不保留副本。
+
+- 分界原则：几何、数值和语义归 gis-kit，颜色、纹理和图例归 gis-composer。方案只说明每一类是什么；颜色由 gis-composer 按主题决定，所以换主题时矢量和栅格会一起变色。
+- gis-kit 在 `capabilities` 中声明 `write: [1]`，gis-composer 声明 `read: [1]`，`gis-doctor` 两两配对；读取方遇到不认识的版本时拒绝。
+- 外壳本身不读这两种文件，只负责登记和版本配对。
 
 ## semantics
 
