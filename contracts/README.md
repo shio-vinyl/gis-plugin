@@ -11,6 +11,7 @@
 | class-scheme | 分类方案：每一类的代码或断点、标签、分组、计数、单位与状态，不含颜色 | gis-kit（`scheme.py`、`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | display-raster | 不上色的 EPSG:3857 显示栅格：类别序号或 24 位数值编码、四角坐标、所用方案 | gis-kit（`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | tile-snapshot | 在线瓦片的本地快照清单：服务商、URL 模板、许可、署名、获取时间、逐瓦片 SHA-256 | gis-kit（`snapshot.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
+| admin-chain | 场地的行政区链：各级包含场地的单元、下一级界线、显示简化参数、文件 SHA-256 | gis-kit（`admin-chain.py`） | Agent（据清单写 gis-composer 的 sheet 组合；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
 | review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
@@ -97,7 +98,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## describe
 
-产出方为 gis-kit 的 `gis.py describe <path> --json`，格式与字段说明由 gis-kit 维护：[describe.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/describe.schema.json)、[harness.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/harness.md)（`schema_version: 1`）。本仓库不保留副本。
+产出方为 gis-kit 的 `gis.py describe <path> --json`，格式与字段说明由 gis-kit 维护：[describe.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/describe.schema.json)、[harness.md](https://github.com/shioo-gis/gis-kit/blob/main/references/harness.md)（`schema_version: 1`）。本仓库不保留副本。
 
 外壳 hook `hooks/scripts/inject_describe.py` 作为读取方：
 
@@ -106,7 +107,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## class-scheme 与 display-raster
 
-产出方是 gis-kit，格式说明由 gis-kit 维护：[class-scheme.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/class-scheme.schema.json)、[display-raster.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/display-raster.schema.json)、[composer-display.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/composer-display.md)（均为 `schema_version: 1`）。本仓库不保留副本。
+产出方是 gis-kit，格式说明由 gis-kit 维护：[class-scheme.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/class-scheme.schema.json)、[display-raster.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/display-raster.schema.json)、[composer-display.md](https://github.com/shioo-gis/gis-kit/blob/main/references/composer-display.md)（均为 `schema_version: 1`）。本仓库不保留副本。
 
 - 分界原则：几何、数值和语义归 gis-kit，颜色、纹理和图例归 gis-composer。方案只说明每一类是什么；颜色由 gis-composer 按主题决定，所以换主题时矢量和栅格会一起变色。
 - gis-kit 在 `capabilities` 中声明 `write: [1]`，gis-composer 声明 `read: [1]`，`gis-doctor` 两两配对；读取方遇到不认识的版本时拒绝。
@@ -114,10 +115,18 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## tile-snapshot
 
-产出方是 gis-kit `snapshot.py`，说明见 [tile-snapshot.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/tile-snapshot.md)，服务商白名单在 [snapshot-providers.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/snapshot-providers.json)（`schema_version: 1`）。
+产出方是 gis-kit `snapshot.py`，说明见 [tile-snapshot.md](https://github.com/shioo-gis/gis-kit/blob/main/references/tile-snapshot.md)，服务商白名单在 [snapshot-providers.json](https://github.com/shioo-gis/gis-kit/blob/main/references/snapshot-providers.json)（`schema_version: 1`）。
 
 - 在线瓦片先快照进 Composer 项目的 `inputs/`，渲染只读本地瓦片，不联网；条款禁止缓存的服务由 gis-kit 拒绝。
 - gis-composer 读取前逐瓦片核对 SHA-256，并把署名写进来源行。两边分别在 `capabilities` 中声明 `write: [1]` / `read: [1]`，由 `gis-doctor` 配对。
+
+## admin-chain
+
+产出方是 gis-kit `admin-chain.py`，说明见 [admin-chain.md](https://github.com/shioo-gis/gis-kit/blob/main/references/admin-chain.md)（`schema_version: 1`）。本仓库不保留副本。
+
+- gis-kit 负责找单元、取下一级界线和显示简化，几何与名称来自所用的分级数据；国界口径（如 `ADM_0_cn_review_full`）显式选择并写进清单。
+- 清单由 Agent 读取：各级 `bounds` 写成 sheet 组合里各面板的范围；`chain.geojson` 与 `context.geojson` 作为普通数据交给 gis-composer，版面结构（`row`、`hero` 等）与颜色由 Composer 决定。gis-kit 在 `capabilities` 中声明 `write: [1]`；Composer 不读清单本身，所以没有读取方配对，GeoJSON 的哈希由 Composer 的 `run.json` 记录。
+- 跨引擎用法见 [recipes/location-chain.md](../recipes/location-chain.md)。
 
 ## semantics
 
