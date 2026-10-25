@@ -34,6 +34,7 @@
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
 | `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么 |
+| `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的引擎 skill；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
 | `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
 | `adapters/`（以后） | 某个 harness 专用的界面适配（Claude mod、dsh 插件），保持很薄，不含业务逻辑 |
@@ -44,7 +45,7 @@
 |---|---|
 | 读写 GIS 数据的代码 | 即第二份引擎 |
 | 引擎代码副本、vendored 依赖、虚拟环境 | 违反唯一维护源 |
-| 自动安装、升级依赖的脚本 | 须用户授权 |
+| 自动安装、升级依赖的脚本 | 须用户授权；手动运行的 skill 更新脚本只更新已装副本，不在此列 |
 | MCP server 的实现 | 需了解引擎内部协议，放在引擎里作为子命令 |
 | 数据、trace、运行记录、令牌、用户的 semantics 文件 | semantics 文件跟着数据或项目走，外壳只定义格式 |
 | 通用插件注册表、调度框架 | 不建设平台；已知引擎固定列出 |
