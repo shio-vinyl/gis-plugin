@@ -55,6 +55,15 @@ hooks/scripts/                    标准库 Python
 
 各引擎的 skill 不随外壳安装：把 gis-kit、gis-view、gis-composer 的仓库目录分别软链或复制为 `~/.claude/skills/<name>`、`~/.codex/skills/<name>`、`~/.dsh/skills/<name>`，各自独立可用（gis-kit 另见其 README）。
 
+更新已装的引擎 skill（目前只含 gis-kit、gis-composer；gis-view 待完成后加入）：
+
+```bash
+python3 scripts/update_engine_skills.py --dry-run
+python3 scripts/update_engine_skills.py
+```
+
+脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。
+
 引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。
 
 **版本号与更新**：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 `version` 保持一致（测试检查）。版本号相同时 CC 的 `claude plugin update` 视为已是最新、不会刷新安装副本（2026-10-10 实测），因此改动进入安装副本且影响行为（skills、hooks、清单）时随同一提交提版本：1.0 之前，删除或不兼容（如移除 skill、改变读取的约定版本）提 minor，其余提 patch；只改文档、测试、evals 不提。推送后更新各宿主：
