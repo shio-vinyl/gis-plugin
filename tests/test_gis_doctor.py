@@ -104,6 +104,9 @@ class FakeEngines(unittest.TestCase):
         pairs = {(p["contract"], p["writer"], p["reader"]): p for p in doctor.check_contracts([kit, composer])}
         self.assertEqual(pairs[("class-scheme", "gis-kit", "gis-composer")]["status"], "ok")
         self.assertEqual(pairs[("display-raster", "gis-kit", "gis-composer")]["message"], "v1")
+        snapshot_kit = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"tile-snapshot": {"write": [1]}})}
+        snapshot_composer = {"engine": "gis-composer", "capabilities": caps(engine="gis-composer", contracts={"tile-snapshot": {"read": [1]}})}
+        self.assertEqual(doctor.check_contracts([snapshot_kit, snapshot_composer])[0]["status"], "ok")
         newer = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"class-scheme": {"write": [2]}})}
         self.assertEqual(doctor.check_contracts([newer, composer])[0]["status"], "error")
 
