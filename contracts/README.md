@@ -10,6 +10,7 @@
 | semantics | 用户声明的字段与波段语义：总量/密度/比率/类别、单位 | 用户（`.gis/semantics.json`，跟随数据） | 外壳 hooks（gis-kit、gis-view 尚未读取） | 草案，已有 Schema，见下文 |
 | class-scheme | 分类方案：每一类的代码或断点、标签、分组、计数、单位与状态，不含颜色 | gis-kit（`scheme.py`、`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | display-raster | 不上色的 EPSG:3857 显示栅格：类别序号或 24 位数值编码、四角坐标、所用方案 | gis-kit（`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
+| display-vector | 按一张图的视角概括的显示矢量：面、陆上国界线（只取公共边）、海岸线，以及视角、参数、文件 SHA-256 | gis-kit（`display-vector.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | tile-snapshot | 在线瓦片的本地快照清单：服务商、URL 模板、许可、署名、获取时间、逐瓦片 SHA-256 | gis-kit（`snapshot.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | admin-chain | 场地的行政区链：各级包含场地的单元、下一级界线、显示简化参数、文件 SHA-256 | gis-kit（`admin-chain.py`） | Agent（写 gis-composer 的地图清单；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
 | project | 共用项目目录：清单、项目主题、地图清单、分析成果与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
@@ -113,6 +114,14 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 分界原则：几何、数值和语义归 gis-kit，颜色、纹理和图例归 gis-composer。方案只说明每一类是什么；颜色由 gis-composer 按主题决定，所以换主题时矢量和栅格会一起变色。
 - gis-kit 在 `capabilities` 中声明 `write: [1]`，gis-composer 声明 `read: [1]`，`gis-doctor` 两两配对；读取方遇到不认识的版本时拒绝。
 - 外壳本身不读这两种文件，只负责登记和版本配对。
+
+## display-vector
+
+产出方是 gis-kit `display-vector.py`，说明见 [display-vector.md](https://github.com/shioo-gis/gis-kit/blob/main/references/display-vector.md)（`schema_version: 1`）。本仓库不保留副本。
+
+- 小比例尺地图不预存多比例尺底图：gis-composer `inspect` 报告每个面板的视角（中心、缩放、画布，Web 墨卡托 512 像素瓦片），gis-kit 只为这个视角概括一次（删去几平方像素以下的部件、半像素共边简化、陆上国界只取公共边、海岸取外轮廓），结果发布到项目 `inputs/`，可缓存。
+- gis-composer 读取前逐文件核对 SHA-256，并比较包的视角与实际渲染的比例尺和范围，不符时 lint 警告，由 Agent 按新视角重新生成；渲染器不做几何计算。
+- 两边分别在 `capabilities` 中声明 `write: [1]` / `read: [1]`，由 `gis-doctor` 配对。
 
 ## tile-snapshot
 
