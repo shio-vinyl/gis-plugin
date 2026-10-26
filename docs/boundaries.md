@@ -112,6 +112,7 @@ agent-skills   只保留非 GIS 入口
 - **外壳暂不公开**（2026-10-08）。保持私有开发；以后若随 gis-kit 公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告，届时再定是否需要英文文档。
 - **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
 - **semantics 约定**（2026-10-10）。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
+- **共用项目目录**（2026-10-26）。gis-kit、gis-composer（以后还有 plan-deck）共用 gis-composer 定义的项目根：清单、项目主题、地图清单、`inputs/<分析名>/`、`runs/`；各引擎只写自己那部分，仍可脱离项目独立使用。说明由 gis-composer 维护，本仓库在 [contracts/README.md](../contracts/README.md#project共用项目目录) 索引。
 - **约定只为已实现的一方定 Schema**（2026-10-10）。view、selection、review、scene-draft 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
 
 - **引擎脱离外壳可用**（2026-10-10）。确立 §1 第 5 条，并据此纠正两处：
