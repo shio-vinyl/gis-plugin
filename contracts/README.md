@@ -11,7 +11,8 @@
 | class-scheme | 分类方案：每一类的代码或断点、标签、分组、计数、单位与状态，不含颜色 | gis-kit（`scheme.py`、`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | display-raster | 不上色的 EPSG:3857 显示栅格：类别序号或 24 位数值编码、四角坐标、所用方案 | gis-kit（`raster.py display` 的 values 模式） | gis-composer | 草案，Schema 由 gis-kit 维护，见下文 |
 | tile-snapshot | 在线瓦片的本地快照清单：服务商、URL 模板、许可、署名、获取时间、逐瓦片 SHA-256 | gis-kit（`snapshot.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
-| admin-chain | 场地的行政区链：各级包含场地的单元、下一级界线、显示简化参数、文件 SHA-256 | gis-kit（`admin-chain.py`） | Agent（据清单写 gis-composer 的 sheet 组合；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
+| admin-chain | 场地的行政区链：各级包含场地的单元、下一级界线、显示简化参数、文件 SHA-256 | gis-kit（`admin-chain.py`） | Agent（写 gis-composer 的地图清单；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
+| project | 共用项目目录：清单、项目主题、地图清单、分析成果与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
 | review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
@@ -125,8 +126,31 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 产出方是 gis-kit `admin-chain.py`，说明见 [admin-chain.md](https://github.com/shioo-gis/gis-kit/blob/main/references/admin-chain.md)（`schema_version: 1`）。本仓库不保留副本。
 
 - gis-kit 负责找单元、取下一级界线和显示简化，几何与名称来自所用的分级数据；国界口径（如 `ADM_0_cn_review_full`）显式选择并写进清单。
-- 清单由 Agent 读取：各级 `bounds` 写成 sheet 组合里各面板的范围；`chain.geojson` 与 `context.geojson` 作为普通数据交给 gis-composer，版面结构（`row`、`hero` 等）与颜色由 Composer 决定。gis-kit 在 `capabilities` 中声明 `write: [1]`；Composer 不读清单本身，所以没有读取方配对，GeoJSON 的哈希由 Composer 的 `run.json` 记录。
+- `chain.geojson` 与 `context.geojson` 作为普通数据交给 gis-composer 的地图清单：分面按 `key` 逐级展开面板，各级范围由 `fit` 从同一份 GeoJSON 推导，不需要把清单里的 `bounds` 抄进去；版式（`row`、`hero` 等）由地图清单决定，颜色由项目主题决定。清单 `chain.json` 供 Agent 核对级数、名称与告警。gis-kit 在 `capabilities` 中声明 `write: [1]`；Composer 不读清单本身，所以没有读取方配对，GeoJSON 的哈希由 Composer 的 `run.json` 记录。
 - 跨引擎用法见 [recipes/location-chain.md](../recipes/location-chain.md)。
+
+## project（共用项目目录）
+
+说明由 gis-composer 维护：[架构 §4 项目工作区](https://github.com/shioo-gis/gis-composer/blob/main/docs/architecture.md)、README 的 Map Specs 一节（项目清单 `schemaVersion: 1`）。本仓库只做索引，不保留副本。
+
+一个项目一个根目录，各引擎只写自己那一部分，彼此只交换文件：
+
+| 路径 | 内容 | 谁写 | 谁读 |
+|---|---|---|---|
+| `gis-project.json` | 清单：`schemaVersion`、`id`、`name`、`external`（声明的数据根名）、`theme`（项目主题文件） | gis-composer `project init` | gis-composer |
+| `style/map.theme.json` | 项目主题：继承 research / presentation / atlas，项目内所有地图共用的符号系统 | Agent（`project init` 生成初稿） | gis-composer |
+| `maps/<id>.map.json` | 地图清单：每张图的版式与内容，可标 `status`（draft / pending / ready）与待补说明 | Agent | gis-composer |
+| `inputs/<分析名>/` | 分析成果：新目录、原子发布、不覆盖，自带 `record.json` | gis-kit（`--output` 指向这里） | gis-composer；Agent |
+| `scenes/` | 手写的 Scene / Storyboard / Sheet | Agent | gis-composer |
+| `runs/<run-id>/` | 每次运行一个目录，只增不改：`run.json` 记录每个输入与输出的 SHA-256 | gis-composer | 任何人只读 |
+| `releases/<version>/` | 从某次运行发布的成品与 `release.json` | gis-composer `project release` | 任何人只读 |
+| `.cache/` | 缓存与临时文件，可随时删除 | gis-composer | — |
+
+- **溯源**：gis-kit 的 `record.json` 与 Composer 的 `run.json` 用同一种算法记录文件 SHA-256，从分析到成图可以逐个核对。两份记录各管各的：`record.json` 只说明分析成果已完整发布，成图是否完成看 `run.json` 的 `status`。
+- **引擎仍可独立使用**：gis-kit 不依赖项目存在，`--output` 可以是任意新目录；只有交给 Composer 时才发布到 `inputs/`。gis-view 可以打开项目里的任何文件查看，但不写入项目。
+- **共享大数据不进项目**：底图、DEM、geo-assets 在 `external` 里声明名称，各设备在 `~/.config/gis-composer/roots.json` 配置路径；`project status` 报告本机缺哪些。
+- **plan-deck（暂缓）**：规划汇报与地图将共用同一个项目根，页面视觉系统导出为项目主题，使 PPT 与图纸同色系。plan-deck 尚无运行时，目录名和映射规则等它实现时再定。
+- **版本配对**：目前只有 gis-composer 读写清单，gis-kit 只遵守 `inputs/` 的路径规则、不读写清单，因此没有跨引擎的 capabilities 配对。等另一个引擎开始读写清单时，再由双方在 `capabilities` 中声明 `project` 的版本。
 
 ## semantics
 
