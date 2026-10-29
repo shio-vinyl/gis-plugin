@@ -13,7 +13,8 @@
 | display-vector | 按一张图的视角概括的显示矢量：面、陆上国界线（只取公共边）、海岸线，以及视角、参数、文件 SHA-256 | gis-kit（`display-vector.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | tile-snapshot | 在线瓦片的本地快照清单：服务商、URL 模板、许可、署名、获取时间、逐瓦片 SHA-256 | gis-kit（`snapshot.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | admin-chain | 场地的行政区链：各级包含场地的单元、下一级界线、显示简化参数、文件 SHA-256 | gis-kit（`admin-chain.py`） | Agent（写 gis-composer 的地图清单；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
-| project | 共用项目目录：清单、项目主题、地图清单、分析成果与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
+| project | 共用项目目录：清单（含出版参数）、项目主题、地图清单、分析成果与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
+| map-legend | 每张图旁的图例数据：渲染时解析出的图例行与最终色值、图例是否画进图里、放置尺寸与比例尺 | gis-composer（每次出图写 `<图>.legend.json`） | Agent；出页脚本（汇报页据此画可编辑图例、按尺寸放图） | 草案，说明由 gis-composer 维护，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
 | review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
@@ -122,6 +123,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 小比例尺地图不预存多比例尺底图：gis-composer `inspect` 报告每个面板的视角（中心、缩放、画布，Web 墨卡托 512 像素瓦片），gis-kit 只为这个视角概括一次（删去几平方像素以下的部件、半像素共边简化、陆上国界只取公共边、海岸取外轮廓），结果发布到项目 `inputs/`，可缓存。
 - gis-composer 读取前逐文件核对 SHA-256，并比较包的视角与实际渲染的比例尺和范围，不符时 lint 警告，由 Agent 按新视角重新生成；渲染器不做几何计算。
 - 两边分别在 `capabilities` 中声明 `write: [1]` / `read: [1]`，由 `gis-doctor` 配对。
+- 跨引擎用法见 [recipes/display-basemap.md](../recipes/display-basemap.md)。
 
 ## tile-snapshot
 
@@ -146,7 +148,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 | 路径 | 内容 | 谁写 | 谁读 |
 |---|---|---|---|
-| `gis-project.json` | 清单：`schemaVersion`、`id`、`name`、`external`（声明的数据根名）、`theme`（项目主题文件） | gis-composer `project init` | gis-composer |
+| `gis-project.json` | 清单：`schemaVersion`、`id`、`name`、`external`（声明的数据根名）、`theme`（项目主题文件）、可选的 `print`（出版参数） | gis-composer `project init` | gis-composer |
 | `style/map.theme.json` | 项目主题：继承 research / presentation / atlas，项目内所有地图共用的符号系统 | Agent（`project init` 生成初稿） | gis-composer |
 | `maps/<id>.map.json` | 地图清单：每张图的版式与内容，可标 `status`（draft / pending / ready）与待补说明 | Agent | gis-composer |
 | `inputs/<分析名>/` | 分析成果：新目录、原子发布、不覆盖，自带 `record.json` | gis-kit（`--output` 指向这里） | gis-composer；Agent |
@@ -157,9 +159,20 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 - **溯源**：gis-kit 的 `record.json` 与 Composer 的 `run.json` 用同一种算法记录文件 SHA-256，从分析到成图可以逐个核对。两份记录各管各的：`record.json` 只说明分析成果已完整发布，成图是否完成看 `run.json` 的 `status`。
 - **引擎仍可独立使用**：gis-kit 不依赖项目存在，`--output` 可以是任意新目录；只有交给 Composer 时才发布到 `inputs/`。gis-view 可以打开项目里的任何文件查看，但不写入项目。
+- **按厘米出图**：图要放进页面槽位时，地图清单的 `layout` 写 `widthCm` 和 `heightCm`（或 `aspect`），dpi 取 `gis-project.json` 的 `print.dpi`；主题里的字号、线宽和比例尺因此都是页面上的物理尺寸。设了 `print.minTextPt` 时，QA 报出低于下限的字。细节见 gis-composer README 的 Map Specs 一节（Print size），放置尺寸写进 [map-legend](#map-legend)。
 - **共享大数据不进项目**：底图、DEM、geo-assets 在 `external` 里声明名称，各设备在 `~/.config/gis-composer/roots.json` 配置路径；`project status` 报告本机缺哪些。
 - **plan-deck（暂缓）**：规划汇报与地图将共用同一个项目根，页面视觉系统导出为项目主题，使 PPT 与图纸同色系。plan-deck 尚无运行时，目录名和映射规则等它实现时再定。
 - **版本配对**：目前只有 gis-composer 读写清单，gis-kit 只遵守 `inputs/` 的路径规则、不读写清单，因此没有跨引擎的 capabilities 配对。等另一个引擎开始读写清单时，再由双方在 `capabilities` 中声明 `project` 的版本。
+
+## map-legend
+
+产出方是 gis-composer，说明见其 README 的 Map Specs 一节与 SKILL.md 的“输出”（`schema_version: 1`）。本仓库不保留副本。
+
+- 每张渲染出的图旁写 `<图>.legend.json`：`image`、`drawn`（图例是否也画进了 PNG）、`title`、`items`。行就是渲染时按主题解析出的图例行，颜色为最终色值；数据驱动的表达式去掉，各类的值已在 `classes` 或 `stops` 里列出。
+- 多面板图写一份 Sheet 共享图例；面板保留自己的图例时（`legend: true`），另写 `panels/<面板>.legend.json`。
+- 按厘米出图时还记 `print`（`widthCm`、`heightCm`、`dpi`，按这个尺寸放图）；单图和面板记 `scale`（图中心的 `metersPerPixel`，按厘米出图时还有 `metersPerCm` 和比例尺分母），页面可自己画比例尺。
+- 用法：图要放进汇报页、由页面画可编辑图例时，地图清单写 `legend: {visible: false}`，PNG 里不画图例；出页脚本读这份文件画图例、按 `print` 放图，不手抄颜色和标签。
+- `rerun` 把它当作交付物逐字节比对。读取方目前是 Agent 和项目里的出页脚本（plan-deck 尚无运行时），都不是引擎，因此没有 capabilities 配对。
 
 ## semantics
 
