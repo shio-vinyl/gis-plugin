@@ -62,7 +62,7 @@ python3 scripts/update_engine_skills.py --dry-run
 python3 scripts/update_engine_skills.py
 ```
 
-脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。
+脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。要不要更新，先看 `gis-doctor`：它把各宿主里的副本与源仓库逐文件比对，落后时列出缺少或不同的文件。
 
 引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。
 

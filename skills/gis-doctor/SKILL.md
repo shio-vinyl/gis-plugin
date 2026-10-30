@@ -24,3 +24,13 @@ python3 scripts/gis_doctor.py
 | `GIS_COMPOSER_CMD` | gis-composer |
 
 doctor 对每个已配置的引擎运行 `<命令> capabilities --json`，按 `contracts/capabilities.schema.json` 校验输出并检查最低版本。
+
+## 已装的引擎 skill
+
+doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效）里已装的引擎 skill，源仓库由上表的引擎命令定位：
+
+- 软链随源仓库，不报。
+- 副本（git clone 或复制的目录）按源仓库 `git ls-files` 列出的文件逐个比对内容；缺少或不同时报“落后”并列出文件，副本多出的文件不算。
+- Codex 单文件入口（只有 `SKILL.md`）与源 `SKILL.md` 对比，允许改写运行时位置的那一行。
+
+落后只是提示，不影响退出码；doctor 不更新任何东西，是否更新由用户决定，见 gis-plugin 的 `scripts/update_engine_skills.py`。
