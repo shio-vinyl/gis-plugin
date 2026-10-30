@@ -1,6 +1,6 @@
 # 约定清单
 
-引擎之间、引擎与外壳之间交换的文件格式。只涉及外壳的格式（capabilities、sources、semantics）在本目录写 JSON Schema（`<name>.schema.json`）和本页中的说明；引擎产出的格式由产出方维护，本页只写用途、产出方、读取方、版本和跨引擎衔接要点，字段以引擎文档为准。均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。
+引擎之间、引擎与外壳之间交换的文件格式。只涉及外壳的格式（capabilities、sources、semantics）和有多个产出方的格式（map-style）在本目录写 JSON Schema（`<name>.schema.json`）和本页中的说明；引擎产出的格式由产出方维护，本页只写用途、产出方、读取方、版本和跨引擎衔接要点，字段以引擎文档为准。均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。
 
 | 约定 | 用途 | 产出方 | 读取方 | 状态 |
 |---|---|---|---|---|
@@ -15,10 +15,11 @@
 | admin-chain | 场地的各级行政区，供区位图逐级放大 | gis-kit（`admin-chain.py`） | Agent（写 gis-composer 的地图清单；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
 | project | 共用项目目录：分析成果、地图清单、主题与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
 | map-legend | 每张图旁的图例数据，汇报页据此画可编辑图例、按尺寸放图 | gis-composer（每次出图写 `<图>.legend.json`） | Agent；出页脚本 | 草案，说明由 gis-composer 维护，见下文 |
+| map-style | 一张图的图层、数据引用、绘制顺序和最终样式，与平台无关；在引擎之间、以及与 QGIS、ArcGIS 等平台格式之间转样式 | gis-composer（已发布的地图）；gis-view（临时样式）；gis-kit（从平台格式转回） | gis-kit（转成平台格式）；gis-view；gis-composer | 草案：Schema 先行，gis-composer 导出实现时定稿，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
 | review | 审阅记录：要素的接受/待定/拒绝与备注，不改源数据 | gis-view | gis-kit | 暂缓：无产出方，见下文 |
-| scene-draft | 由查看状态导出的 Scene 草稿 | gis-view | gis-composer | 暂缓：无产出方，见下文；样式契约不同，只保证草稿 |
+| scene-draft | 由查看状态导出的 Scene 草稿 | gis-view | gis-composer | 取消：gis-view 改为导出 map-style，见下文 |
 
 ## 共同规则
 
@@ -161,6 +162,57 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 用法：图要放进汇报页、由页面画可编辑图例时，地图清单关掉 PNG 里的图例，出页脚本读这份文件画图例、按尺寸放图，不手抄颜色和标签。
 - `rerun` 把它当作交付物逐字节比对。读取方是 Agent、项目里的出页脚本和 plan-deck 运行时（只从发布版读）；plan-deck 不在本仓库的引擎配对里，因此没有 capabilities 配对。
 
+## map-style
+
+Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，**草案**）。
+
+一份 `map-style` 描述一张图：有哪些图层、各引用什么数据、按什么顺序画、每层长什么样，以及可选的标注位置和图幅范围。它和平台、渲染器无关，不写 MapLibre 表达式、QML 或 CIM。设计讨论见 gis-plugin#16。
+
+- **为什么放在这里**：它有多个产出方（gis-composer 写已发布的地图，gis-view 写临时样式，gis-kit 从平台格式转回来），格式说明只写一处，所以由外壳维护。读的一方是 gis-kit（转成 QGIS 等平台格式）、gis-view 和 gis-composer。
+- **草案**：按 boundaries 的规则，约定本该等第一个产出方实现后再写 Schema。这份 Schema 先写，是为了让 composer 导出和 gis-kit 打包能按同一份字段并行开发（boundaries 2026-10-30 的例外）。gis-composer 的导出实现时按实际输出定稿；定稿前各引擎不在 `capabilities` 里登记读写版本，doctor 也不配对。
+- **分工**：平台格式（QML、`.qgz`，以后 `.lyrx` 等）的读写都归 gis-kit；composer、gis-view 只读写 `map-style`。外壳不读写数据。
+
+```json
+{
+  "contract": "map-style",
+  "schema_version": 1,
+  "id": "example-map",
+  "producer": {"engine": "gis-composer", "version": "0.1.0", "release": "v1", "map": "example-map"},
+  "units": {"size": "px"},
+  "dataRoot": "project",
+  "extent": {"bbox": [114.00, 22.50, 114.10, 22.60], "print": {"widthCm": 10, "heightCm": 14, "dpi": 300}},
+  "layers": [
+    {"id": "ground", "group": "ground", "geometry": "polygon", "data": {"path": "@basemap/land.geojson"},
+     "renderer": {"type": "single", "symbol": {"fill": {"color": "#E1E1E1", "opacity": 1}}}, "legend": {"show": false}},
+    {"id": "parcels", "title": "用地分类", "group": "fills", "geometry": "polygon", "data": {"path": "inputs/analysis/parcels.geojson"},
+     "renderer": {"type": "categorized", "field": "类别",
+                  "classes": [{"value": "A 类", "label": "A 类（47 块）", "symbol": {"fill": {"color": "#ED7D31", "opacity": 1}}},
+                              {"value": "B 类", "label": "B 类（73 块）", "symbol": {"fill": {"color": "#4F81BD", "opacity": 1}}}],
+                  "default": null},
+     "legend": {"show": true, "title": "用地分类"}},
+    {"id": "parcels-outline", "group": "lines", "geometry": "polygon", "data": {"path": "inputs/analysis/parcels.geojson"},
+     "renderer": {"type": "single", "symbol": {"stroke": {"color": "#FFFFFF", "width": 0.8, "opacity": 0.9}}}, "legend": {"show": false}},
+    {"id": "names", "group": "labels", "geometry": "point", "data": {"path": "inputs/analysis/names.geojson"},
+     "renderer": null,
+     "labels": {"field": "name", "text": {"font": "GC Sans", "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2}},
+                "placement": "point", "enabled": false}}
+  ],
+  "labelPlacements": [
+    {"layer": "names", "text": "示例片区", "position": [114.05, 22.54], "anchor": "center",
+     "style": {"font": "GC Sans", "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2}}}
+  ]
+}
+```
+
+- **图层**：`layers` 按自下而上的绘制顺序排。同一份数据画成多层的（面、描边、白色衬边），写成多个图层、引用同一个 `data`。`group` 沿用 composer 的绘制分组。
+- **数据路径**：`data.path` 相对 `dataRoot`（项目根或本文件所在目录），外部数据根写 `@<根名>/…`；不允许绝对路径和 `..`。数据本身保持原坐标系。
+- **渲染方式**：矢量的 `single`、`categorized`、`graduated`、`rule` 与 gis-view 的样式模型一一对应；栅格有 `pseudocolor`、`palette`、`rgb`。符号分 `fill`、`stroke`、`marker` 三部分，颜色写 `#RRGGBB`，透明度另写。比例圆用图层上的 `size`（字段值按 `linear` 或 `sqrt` 映射到半径）。只用来放标注、要素本身不画的矢量图层，`renderer` 写 `null`。
+- **单位和坐标**：尺寸一律是 CSS 像素（1 px = 1/96 英寸）；`extent`、`labelPlacements` 用经纬度（EPSG:4326）。
+- **筛选**：只用结构化的一小套（`field`/`op`/`value`，加 `all`、`any`、`not`）。装不下的条件写 `{"expression": …, "dialect": "qgis"}`，读的一方不认识这种方言时按“没有筛选”处理，并列出跳过的部分，不能悄悄丢掉。
+- **标注**：图层上的 `labels` 是平台自己排的标注，composer 导出时写 `enabled: false`；composer 预先算好的位置写在顶层 `labelPlacements`，可以带引线。gis-kit 打包时把它写成点图层，和 PNG 一致，也能逐个拖动。
+- **字体**：`fonts[]` 与 gis-composer `render.fonts[]` 的形状相同（含 name 表 `names`）。
+- v1 不含影片、三维和标注密度这类 composer 特有的设置。
+
 ## semantics
 
 Schema：[semantics.schema.json](semantics.schema.json)（`schema_version: 1`）。由用户写在数据所在目录的 `.gis/semantics.json`，声明字段或波段“是什么量”；外壳 hook `hooks/scripts/inject_describe.py` 在注入元数据卡片时一并转述。
@@ -186,11 +238,11 @@ Schema：[semantics.schema.json](semantics.schema.json)（`schema_version: 1`）
 
 ## 暂缓的约定
 
-view、selection、review、scene-draft 目前没有任何引擎产出（2026-10-10 核对）：
+view、selection、review 目前没有任何引擎产出（2026-10-10 核对；scene-draft 已取消）：
 
 - selection：gis-view 的选择集只在服务进程内存中（`fids`、`revision` 等），不落文件；复制到剪贴板的“观察上下文”不是约定格式，且没有 `revision`。
 - review：gis-view 不写审阅记录；gis-kit 的人工审阅（`raster-annotate.py feedback`）有自己的格式，以 gis-kit 仓库为准。
 - view：没有引擎写出供 gis-view 打开的查看描述；gis-view 的 `session.json` 是其内部文件。
-- scene-draft：gis-view 尚无 Scene 导出；gis-kit 交给 gis-composer 的是普通 Scene 与显示数据（见 gis-kit `references/composer-display.md`）。
+- scene-draft：已取消（2026-10-30）。gis-view 改为导出 [map-style](#map-style)，可交给 gis-composer 起草，也可交给 gis-kit 打包。
 
 等第一个产出方实现时，再按其实际字段定 Schema，避免先写出无人实现、随后漂移的格式。

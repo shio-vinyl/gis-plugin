@@ -75,7 +75,7 @@
 | 统计 | 字段统计，用于浏览和选择，不导出 | 分区统计等分析性统计 → gis-kit |
 | 筛选、选择 | 只影响显示；可导出选择集文件 | 按选择集生成子集文件 → gis-kit |
 | 重投影 | 显示时临时投影 | 改写坐标系 → gis-kit |
-| 样式 | 临时样式；可导出 Scene 草稿 | 正式制图 → gis-composer |
+| 样式 | 临时样式；可导出 [map-style](../contracts/README.md#map-style) | 正式制图 → gis-composer；转成 QGIS 等平台格式 → gis-kit |
 | 截图 | 作为 Agent 上下文的快速截图 | 正式出图 → gis-composer |
 | 栅格派生 | 可删除的显示缓存 | 作为分析结果 → gis-kit |
 
@@ -114,6 +114,7 @@ agent-skills   只保留非 GIS 入口
 - **semantics 约定**（2026-10-10）。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
 - **共用项目目录**（2026-10-26）。gis-kit、gis-composer（以后还有 plan-deck）共用 gis-composer 定义的项目根：清单、项目主题、地图清单、`inputs/<分析名>/`、`runs/`；各引擎只写自己那部分，仍可脱离项目独立使用。说明由 gis-composer 维护，本仓库在 [contracts/README.md](../contracts/README.md#project共用项目目录) 索引。
 - **约定只为已实现的一方定 Schema**（2026-10-10）。view、selection、review、scene-draft 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
+- **map-style 先写 Schema**（2026-10-30）。一张图的样式约定 [map-style](../contracts/README.md#map-style) 有多个产出方（gis-composer、gis-view、gis-kit），由外壳维护格式说明和 Schema；为了让 composer 导出与 gis-kit 打包按同一份字段并行开发，Schema 在实现前先写成草案，composer 导出实现时定稿，定稿前不登记 capabilities 读写版本。平台格式（QML、`.qgz`、`.lyrx` 等）的读写都归 gis-kit。scene-draft 随之取消，gis-view 改为导出 map-style。
 
 - **引擎脱离外壳可用**（2026-10-10）。确立 §1 第 5 条，并据此纠正两处：
   - gis-view、gis-composer 的 skill 入口移回各自仓库根目录的 `SKILL.md`，直接调用本仓库 CLI，不再经由外壳的启动脚本与 `engines.env`；推翻 2026-10-08 的迁入决定。代价是安装时每个引擎各装一次。
