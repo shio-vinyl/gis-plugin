@@ -143,7 +143,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## project（共用项目目录）
 
-说明由 gis-composer 维护：[架构 §4 项目工作区](https://github.com/shioo-gis/gis-composer/blob/main/docs/architecture.md#4-项目工作区)、README 的 [Map Specs](https://github.com/shioo-gis/gis-composer/blob/main/README.md#map-specs-project-themes-and-encoding-blocks) 一节（项目清单 `schemaVersion: 1`）。目录布局、清单字段与出版参数以那里为准，本仓库只做索引，不保留副本。
+说明由 gis-composer 维护：[架构 §4 项目工作区](https://github.com/shioo-gis/gis-composer/blob/main/docs/architecture.md#4-项目工作区)、[地图清单与 Sheet](https://github.com/shioo-gis/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)（项目清单 `schemaVersion: 1`）。目录布局、清单字段与出版参数以那里为准，本仓库只做索引，不保留副本。
 
 - **各写各的**：一个项目一个根目录，引擎之间只交换文件。gis-kit 只写 `inputs/<分析名>/`（新目录、原子发布、不覆盖，自带 `record.json`）；清单、主题、地图清单、运行与发布目录归 gis-composer 和 Agent；gis-view 可以打开项目里的任何文件查看，但不写入项目。
 - **溯源**：gis-kit 的 `record.json` 与 Composer 的 `run.json` 用同一种算法记录文件 SHA-256，从分析到成图可以逐个核对。两份记录各管各的：`record.json` 只说明分析成果已完整发布，成图是否完成看 `run.json`。
@@ -155,7 +155,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## map-legend
 
-产出方是 gis-composer，`schema_version: 1`。说明见其 README 的 [Map Specs](https://github.com/shioo-gis/gis-composer/blob/main/README.md#map-specs-project-themes-and-encoding-blocks) 一节与 [SKILL.md](https://github.com/shioo-gis/gis-composer/blob/main/SKILL.md) 的“输出”。字段以那里为准，本仓库不保留副本。
+产出方是 gis-composer，`schema_version: 1`。说明见其 [地图清单与 Sheet](https://github.com/shioo-gis/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)。字段以那里为准，本仓库不保留副本。
 
 - 每张渲染出的图旁写一份 `<图>.legend.json`，记录渲染时按主题解析出的图例（最终色值）和放置尺寸。
 - 用法：图要放进汇报页、由页面画可编辑图例时，地图清单关掉 PNG 里的图例，出页脚本读这份文件画图例、按尺寸放图，不手抄颜色和标签。
