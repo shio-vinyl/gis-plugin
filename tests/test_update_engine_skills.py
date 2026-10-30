@@ -15,7 +15,7 @@ spec.loader.exec_module(updater)
 
 COMPOSER_SKILL = (
     "---\nname: gis-composer\ndescription: x\n---\n\n# 地图\n\n"
-    "本 skill 的目录即 gis-composer 运行时仓库，下文记为 `$R`；引擎随仓库维护。\n"
+    "本 skill 的目录即 gis-composer 运行时仓库，下文记为 `$R`。引擎随仓库维护。\n"
 )
 
 
@@ -97,7 +97,7 @@ class UpdateEngineSkills(unittest.TestCase):
         self.assertEqual(item["status"], "ok")
         text = target.read_text(encoding="utf-8")
         self.assertIn(f"gis-composer 运行时仓库在 `{self.composer}`", text)
-        self.assertIn("（本 skill 目录只是 Codex 入口，不含运行时）；引擎随仓库维护。", text)
+        self.assertIn("（本 skill 目录只是 Codex 入口，不含运行时）。引擎随仓库维护。", text)
         self.assertNotIn("本 skill 的目录即", text)
         self.assertEqual(self.result(updater.run(self.environ), "gis-composer", "Codex")["message"], "已是最新")
 
