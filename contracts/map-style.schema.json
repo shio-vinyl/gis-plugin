@@ -4,57 +4,146 @@
   "title": "GIS map style",
   "description": "One map: its layers, the data each draws, the drawing order and each layer's final, resolved style; optionally precomputed label positions and the map extent. Renderer- and platform-neutral: no MapLibre expressions, QML or CIM. Written by gis-composer (a released map), gis-view (a temporary style) and gis-kit (read back from a platform format); read by gis-kit (written out to a platform format), gis-view and gis-composer. Draft: finalised when gis-composer's export is implemented.",
   "type": "object",
-  "required": ["contract", "schema_version", "id", "units", "layers"],
+  "required": [
+    "contract",
+    "schema_version",
+    "id",
+    "units",
+    "layers"
+  ],
   "properties": {
-    "contract": { "const": "map-style" },
-    "schema_version": { "const": 1 },
-    "id": { "type": "string", "minLength": 1 },
-    "title": { "type": ["string", "null"] },
+    "contract": {
+      "const": "map-style"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "producer": {
       "description": "Who wrote this document and from what.",
       "type": "object",
-      "required": ["engine"],
+      "required": [
+        "engine"
+      ],
       "properties": {
-        "engine": { "type": "string", "minLength": 1 },
-        "version": { "type": "string" },
-        "release": { "type": "string" },
-        "map": { "type": "string" }
+        "engine": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "map": {
+          "type": "string"
+        }
       }
     },
     "units": {
       "description": "Sizes (widths, marker sizes, dashes, halos, text) are CSS pixels: 1 px = 1/96 inch.",
       "type": "object",
-      "required": ["size"],
-      "properties": { "size": { "const": "px" } }
+      "required": [
+        "size"
+      ],
+      "properties": {
+        "size": {
+          "const": "px"
+        }
+      }
     },
     "dataRoot": {
       "description": "What data.path is relative to: the project root, or the directory holding this file.",
-      "enum": ["project", "file"],
+      "enum": [
+        "project",
+        "file"
+      ],
       "default": "project"
     },
-    "extent": { "$ref": "#/$defs/extent" },
-    "fonts": { "type": "array", "items": { "$ref": "#/$defs/font" } },
+    "extent": {
+      "$ref": "#/$defs/extent"
+    },
+    "fonts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/font"
+      }
+    },
     "layers": {
       "description": "Drawing order, bottom to top.",
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/layer" }
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
     },
     "labelPlacements": {
       "description": "Labels at fixed positions, as the producer placed them (gis-composer's precomputed layout).",
       "type": "array",
-      "items": { "$ref": "#/$defs/labelPlacement" }
+      "items": {
+        "$ref": "#/$defs/labelPlacement"
+      }
+    },
+    "background": {
+      "description": "The map's background colour (what shows where no layer draws, e.g. water under a land basemap).",
+      "type": "object",
+      "required": [
+        "color"
+      ],
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        }
+      }
+    },
+    "notes": {
+      "description": "What the producer could not express exactly. `untranslated`: left out; `approximated`: written approximately. Readers pass these on to the user.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/note"
+      }
     }
   },
   "$defs": {
-    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-    "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
-    "length": { "type": "number", "minimum": 0 },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "opacity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "length": {
+      "type": "number",
+      "minimum": 0
+    },
     "lngLat": {
       "type": "array",
       "prefixItems": [
-        { "type": "number", "minimum": -180, "maximum": 180 },
-        { "type": "number", "minimum": -90, "maximum": 90 }
+        {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
       ],
       "minItems": 2,
       "maxItems": 2
@@ -63,18 +152,39 @@
       "description": "[west, south, east, north] in longitude and latitude (EPSG:4326).",
       "type": "array",
       "prefixItems": [
-        { "type": "number", "minimum": -180, "maximum": 180 },
-        { "type": "number", "minimum": -90, "maximum": 90 },
-        { "type": "number", "minimum": -180, "maximum": 180 },
-        { "type": "number", "minimum": -90, "maximum": 90 }
+        {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
       ],
       "minItems": 4,
       "maxItems": 4
     },
-    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "data": {
       "type": "object",
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "properties": {
         "path": {
           "description": "Relative to dataRoot; a declared external data root is written `@<root>/…`. Never absolute, never climbing out with `..`.",
@@ -82,84 +192,297 @@
           "minLength": 1,
           "not": {
             "anyOf": [
-              { "pattern": "^/" },
-              { "pattern": "^[A-Za-z]:[\\\\/]" },
-              { "pattern": "^~" },
-              { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }
+              {
+                "pattern": "^/"
+              },
+              {
+                "pattern": "^[A-Za-z]:[\\\\/]"
+              },
+              {
+                "pattern": "^~"
+              },
+              {
+                "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)"
+              }
             ]
           }
         },
-        "layer": { "description": "Layer name inside a multi-layer container (GeoPackage, FileGDB).", "type": ["string", "null"] },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "layer": {
+          "description": "Layer name inside a multi-layer container (GeoPackage, FileGDB).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "kind": {
+          "description": "What path points at: a vector or raster file, or a folder or file of tiles. Tiles cannot be cut to the map extent.",
+          "enum": [
+            "vector",
+            "raster",
+            "vectorTiles",
+            "rasterTiles"
+          ]
+        }
       }
     },
     "fill": {
       "type": "object",
-      "required": ["color"],
-      "properties": { "color": { "$ref": "#/$defs/color" }, "opacity": { "$ref": "#/$defs/opacity" } }
+      "required": [
+        "color"
+      ],
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        }
+      }
     },
     "stroke": {
       "type": "object",
-      "required": ["color", "width"],
+      "required": [
+        "color",
+        "width"
+      ],
       "properties": {
-        "color": { "$ref": "#/$defs/color" },
-        "width": { "$ref": "#/$defs/length" },
-        "opacity": { "$ref": "#/$defs/opacity" },
-        "dash": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/length" } },
-        "cap": { "enum": ["butt", "round", "square"] },
-        "join": { "enum": ["miter", "round", "bevel"] }
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "width": {
+          "$ref": "#/$defs/length"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        },
+        "dash": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/length"
+          }
+        },
+        "cap": {
+          "enum": [
+            "butt",
+            "round",
+            "square"
+          ],
+          "default": "butt"
+        },
+        "join": {
+          "enum": [
+            "miter",
+            "round",
+            "bevel"
+          ],
+          "default": "miter"
+        }
       }
     },
     "marker": {
       "type": "object",
-      "required": ["shape", "size"],
+      "required": [
+        "shape",
+        "size"
+      ],
       "properties": {
-        "shape": { "enum": ["circle", "square", "triangle", "diamond", "ring"] },
-        "size": { "description": "Diameter.", "$ref": "#/$defs/length" }
-      }
+        "shape": {
+          "enum": [
+            "circle",
+            "square",
+            "triangle",
+            "diamond",
+            "ring",
+            "cross",
+            "x",
+            "arrow",
+            "chevron"
+          ]
+        },
+        "size": {
+          "description": "Diameter.",
+          "$ref": "#/$defs/length"
+        },
+        "rotation": {
+          "description": "Degrees clockwise; 0 points up (arrow and chevron point up).",
+          "type": "number",
+          "default": 0
+        }
+      },
+      "description": "A point layer's symbol needs a marker; without one readers draw a 6 px circle and report it."
     },
     "symbol": {
       "type": "object",
       "minProperties": 1,
       "properties": {
-        "fill": { "$ref": "#/$defs/fill" },
-        "stroke": { "$ref": "#/$defs/stroke" },
-        "marker": { "$ref": "#/$defs/marker" }
+        "fill": {
+          "$ref": "#/$defs/fill"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        },
+        "marker": {
+          "$ref": "#/$defs/marker"
+        }
       }
     },
     "symbolOrNone": {
       "description": "null: features this case covers are not drawn.",
-      "anyOf": [{ "$ref": "#/$defs/symbol" }, { "type": "null" }]
+      "anyOf": [
+        {
+          "$ref": "#/$defs/symbol"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "filter": {
-      "description": "A small structured filter that every platform can express; `expression` with a dialect is the fallback for conditions it cannot hold. A reader that does not know the dialect treats it as no filter and reports what it skipped.",
+      "description": "A small structured filter that every platform can express. NULL: `!=` and `notIn` are true for NULL, every other comparison and `in` are false (MapLibre's rule). `expression` with a dialect is the fallback for conditions it cannot hold. A reader that does not know the dialect reports what it skipped and: as a layer filter, applies no filter; as a rule's filter, skips the rule (it matches nothing).",
       "oneOf": [
         {
           "type": "object",
-          "required": ["field", "op"],
+          "required": [
+            "field",
+            "op"
+          ],
           "properties": {
-            "field": { "type": "string", "minLength": 1 },
-            "op": { "enum": ["==", "!=", "<", "<=", ">", ">=", "in", "notIn", "isNull", "notNull"] },
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "op": {
+              "enum": [
+                "==",
+                "!=",
+                "<",
+                "<=",
+                ">",
+                ">=",
+                "in",
+                "notIn",
+                "isNull",
+                "notNull"
+              ]
+            },
             "value": {}
           },
           "allOf": [
             {
-              "if": { "properties": { "op": { "enum": ["in", "notIn"] } } },
-              "then": { "required": ["value"], "properties": { "value": { "type": "array" } } }
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "in",
+                      "notIn"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "type": "array"
+                  }
+                }
+              }
             },
             {
-              "if": { "properties": { "op": { "enum": ["==", "!=", "<", "<=", ">", ">="] } } },
-              "then": { "required": ["value"], "properties": { "value": { "type": ["string", "number", "boolean"] } } }
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "==",
+                      "!=",
+                      "<",
+                      "<=",
+                      ">",
+                      ">="
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                }
+              }
             }
           ]
         },
-        { "type": "object", "required": ["all"], "properties": { "all": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/filter" } } } },
-        { "type": "object", "required": ["any"], "properties": { "any": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/filter" } } } },
-        { "type": "object", "required": ["not"], "properties": { "not": { "$ref": "#/$defs/filter" } } },
         {
           "type": "object",
-          "required": ["expression", "dialect"],
-          "properties": { "expression": { "type": "string", "minLength": 1 }, "dialect": { "type": "string", "minLength": 1 } }
+          "required": [
+            "all"
+          ],
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/filter"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "any"
+          ],
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/filter"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "not"
+          ],
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/filter"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "expression",
+            "dialect"
+          ],
+          "properties": {
+            "expression": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dialect": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       ]
     },
@@ -167,239 +490,748 @@
       "oneOf": [
         {
           "type": "object",
-          "required": ["type", "symbol"],
-          "properties": { "type": { "const": "single" }, "symbol": { "$ref": "#/$defs/symbol" } }
+          "required": [
+            "type",
+            "symbol"
+          ],
+          "properties": {
+            "type": {
+              "const": "single"
+            },
+            "symbol": {
+              "$ref": "#/$defs/symbol"
+            }
+          }
         },
         {
           "type": "object",
-          "required": ["type", "field", "classes"],
+          "required": [
+            "type",
+            "field",
+            "classes"
+          ],
           "properties": {
-            "type": { "const": "categorized" },
-            "field": { "type": "string", "minLength": 1 },
+            "type": {
+              "const": "categorized"
+            },
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
             "classes": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["value", "symbol"],
+                "required": [
+                  "value",
+                  "symbol"
+                ],
                 "properties": {
-                  "value": { "type": ["string", "number", "boolean"] },
-                  "label": { "type": "string" },
-                  "symbol": { "$ref": "#/$defs/symbol" },
-                  "visible": { "type": "boolean" }
+                  "value": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "symbol": {
+                    "$ref": "#/$defs/symbol"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
                 }
               }
             },
-            "default": { "$ref": "#/$defs/symbolOrNone" }
+            "default": {
+              "$ref": "#/$defs/symbolOrNone"
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "field", "classes"],
+          "required": [
+            "type",
+            "field",
+            "classes"
+          ],
           "properties": {
-            "type": { "const": "graduated" },
-            "field": { "type": "string", "minLength": 1 },
-            "method": { "description": "How the breaks were chosen; descriptive only.", "enum": ["equal", "quantile", "jenks", "manual"] },
+            "type": {
+              "const": "graduated"
+            },
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "method": {
+              "description": "How the breaks were chosen; descriptive only.",
+              "enum": [
+                "equal",
+                "quantile",
+                "jenks",
+                "manual"
+              ]
+            },
             "classes": {
               "description": "Ranges are [low, high): low inclusive, high exclusive, except the last class, which includes its high.",
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["range", "symbol"],
+                "required": [
+                  "range",
+                  "symbol"
+                ],
                 "properties": {
-                  "range": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }], "minItems": 2, "maxItems": 2 },
-                  "label": { "type": "string" },
-                  "symbol": { "$ref": "#/$defs/symbol" },
-                  "visible": { "type": "boolean" }
+                  "range": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "symbol": {
+                    "$ref": "#/$defs/symbol"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
                 }
               }
             },
-            "default": { "$ref": "#/$defs/symbolOrNone" }
+            "default": {
+              "$ref": "#/$defs/symbolOrNone"
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "rules"],
+          "required": [
+            "type",
+            "rules"
+          ],
           "properties": {
-            "type": { "const": "rule" },
+            "type": {
+              "const": "rule"
+            },
             "rules": {
               "description": "In order; a feature takes the first rule it matches.",
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["filter", "symbol"],
+                "required": [
+                  "filter",
+                  "symbol"
+                ],
                 "properties": {
-                  "filter": { "$ref": "#/$defs/filter" },
-                  "label": { "type": "string" },
-                  "symbol": { "$ref": "#/$defs/symbol" },
-                  "visible": { "type": "boolean" }
+                  "filter": {
+                    "$ref": "#/$defs/filter"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "symbol": {
+                    "$ref": "#/$defs/symbol"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
                 }
               }
             },
-            "default": { "$ref": "#/$defs/symbolOrNone" }
+            "default": {
+              "$ref": "#/$defs/symbolOrNone"
+            }
           }
         }
       ]
     },
     "colorStop": {
       "type": "object",
-      "required": ["value", "color"],
-      "properties": { "value": { "type": "number" }, "color": { "$ref": "#/$defs/color" }, "label": { "type": "string" } }
+      "required": [
+        "value",
+        "color"
+      ],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
     },
     "rasterRenderer": {
       "oneOf": [
         {
           "type": "object",
-          "required": ["type", "stops"],
+          "required": [
+            "type",
+            "stops"
+          ],
           "properties": {
-            "type": { "const": "pseudocolor" },
-            "band": { "type": "integer", "minimum": 1 },
+            "type": {
+              "const": "pseudocolor"
+            },
+            "band": {
+              "type": "integer",
+              "minimum": 1
+            },
             "stretch": {
               "type": "object",
-              "required": ["method"],
+              "required": [
+                "method"
+              ],
               "properties": {
-                "method": { "enum": ["minmax", "percentile", "stddev", "manual"] },
-                "low": { "type": "number" },
-                "high": { "type": "number" },
-                "k": { "type": "number", "exclusiveMinimum": 0 },
-                "min": { "type": "number" },
-                "max": { "type": "number" }
+                "method": {
+                  "enum": [
+                    "minmax",
+                    "percentile",
+                    "stddev",
+                    "manual"
+                  ]
+                },
+                "low": {
+                  "type": "number"
+                },
+                "high": {
+                  "type": "number"
+                },
+                "k": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
               }
             },
-            "interpolation": { "enum": ["linear", "discrete", "exact"] },
-            "stops": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/colorStop" } },
-            "nodata": { "type": "object", "properties": { "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] } } }
+            "interpolation": {
+              "description": "linear: blend between stops; discrete: each colour from its value up to the next stop, values below the first stop take the first colour; exact: only values equal to a stop are coloured.",
+              "enum": [
+                "linear",
+                "discrete",
+                "exact"
+              ],
+              "default": "linear"
+            },
+            "stops": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/colorStop"
+              },
+              "description": "Stop values are data values; `stretch` records how they were chosen and is not recomputed by readers."
+            },
+            "nodata": {
+              "type": "object",
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/color"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "classes"],
+          "required": [
+            "type",
+            "classes"
+          ],
           "properties": {
-            "type": { "const": "palette" },
-            "band": { "type": "integer", "minimum": 1 },
-            "classes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/colorStop" } }
+            "type": {
+              "const": "palette"
+            },
+            "band": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "classes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/colorStop"
+              }
+            }
           }
         },
         {
           "type": "object",
-          "required": ["type", "bands"],
+          "required": [
+            "type",
+            "bands"
+          ],
           "properties": {
-            "type": { "const": "rgb" },
-            "bands": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 3, "maxItems": 3 }
+            "type": {
+              "const": "rgb"
+            },
+            "bands": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
           }
         }
       ]
     },
     "textStyle": {
       "type": "object",
-      "required": ["size", "color"],
+      "required": [
+        "size",
+        "color"
+      ],
       "properties": {
-        "font": { "type": "string" },
-        "size": { "$ref": "#/$defs/length" },
-        "color": { "$ref": "#/$defs/color" },
+        "font": {
+          "type": "string"
+        },
+        "size": {
+          "$ref": "#/$defs/length"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
         "halo": {
           "type": "object",
-          "required": ["color", "width"],
-          "properties": { "color": { "$ref": "#/$defs/color" }, "width": { "$ref": "#/$defs/length" } }
+          "required": [
+            "color",
+            "width"
+          ],
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "width": {
+              "$ref": "#/$defs/length"
+            },
+            "opacity": {
+              "$ref": "#/$defs/opacity"
+            },
+            "blur": {
+              "$ref": "#/$defs/length"
+            }
+          }
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        },
+        "letterSpacing": {
+          "description": "In em.",
+          "type": "number"
+        },
+        "box": {
+          "description": "A background box behind the text (a label tag).",
+          "type": "object",
+          "properties": {
+            "fill": {
+              "$ref": "#/$defs/fill"
+            },
+            "stroke": {
+              "$ref": "#/$defs/stroke"
+            },
+            "padding": {
+              "$ref": "#/$defs/length"
+            }
+          }
+        }
+      },
+      "description": "`font` names an entry of the top-level `fonts` (a theme alias such as `GC Sans` may be used there); readers take the installed name from that entry's `names`."
+    },
+    "labels": {
+      "description": "Labels the platform places itself. `enabled: false` when the producer has already placed the same labels in labelPlacements (gis-composer's precomputed layout); `true` when the platform should place them (gis-composer's natively placed labels, gis-view).",
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "field"
+          ]
+        },
+        {
+          "required": [
+            "template"
+          ]
+        }
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "description": "Text with `{field}` placeholders.",
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "$ref": "#/$defs/textStyle"
+        },
+        "placement": {
+          "enum": [
+            "auto",
+            "point",
+            "line",
+            "polygon-center"
+          ]
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
         }
       }
     },
-    "labels": {
-      "description": "Labels the platform places itself. gis-composer writes `enabled: false`: its positions are in labelPlacements.",
-      "type": "object",
-      "required": ["text"],
-      "oneOf": [{ "required": ["field"] }, { "required": ["template"] }],
-      "properties": {
-        "field": { "type": "string", "minLength": 1 },
-        "template": { "description": "Text with `{field}` placeholders.", "type": "string", "minLength": 1 },
-        "text": { "$ref": "#/$defs/textStyle" },
-        "placement": { "enum": ["auto", "point", "line", "polygon-center"] },
-        "enabled": { "type": "boolean" }
-      }
-    },
     "size": {
-      "description": "Marker radius from a field: value in domain maps to radius in range.",
+      "description": "Marker radius from a field. With domain [d0, d1] and range [r0, r1] (radii, px): linear r = r0 + (r1 - r0)(v - d0)/(d1 - d0); sqrt r = r0 + (r1 - r0)(sqrt(v) - sqrt(d0))/(sqrt(d1) - sqrt(d0)). With clamp, v is first held within the domain.",
       "type": "object",
-      "required": ["field", "scale", "domain", "range"],
+      "required": [
+        "field",
+        "scale",
+        "domain",
+        "range"
+      ],
       "properties": {
-        "field": { "type": "string", "minLength": 1 },
-        "scale": { "enum": ["linear", "sqrt"] },
-        "domain": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }], "minItems": 2, "maxItems": 2 },
-        "range": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/length" }, { "$ref": "#/$defs/length" }], "minItems": 2, "maxItems": 2 },
-        "clamp": { "type": "boolean" }
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scale": {
+          "enum": [
+            "linear",
+            "sqrt"
+          ]
+        },
+        "domain": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "range": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/length"
+            },
+            {
+              "$ref": "#/$defs/length"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "clamp": {
+          "type": "boolean",
+          "default": true
+        }
       }
     },
     "layer": {
       "type": "object",
-      "required": ["id", "geometry", "data", "renderer"],
+      "required": [
+        "id",
+        "geometry",
+        "data",
+        "renderer"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "title": { "type": ["string", "null"] },
-        "group": { "enum": ["ground", "groundLines", "fills", "lines", "reference", "points", "labels"] },
-        "geometry": { "enum": ["polygon", "line", "point", "raster"] },
-        "data": { "$ref": "#/$defs/data" },
-        "visible": { "type": "boolean" },
-        "opacity": { "$ref": "#/$defs/opacity" },
-        "filter": { "anyOf": [{ "$ref": "#/$defs/filter" }, { "type": "null" }] },
-        "renderer": { "description": "null: the features are not drawn, only their labels (a vector layer that only carries names)." },
-        "size": { "anyOf": [{ "$ref": "#/$defs/size" }, { "type": "null" }] },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group": {
+          "enum": [
+            "ground",
+            "groundLines",
+            "fills",
+            "lines",
+            "reference",
+            "points",
+            "labels"
+          ]
+        },
+        "geometry": {
+          "enum": [
+            "polygon",
+            "line",
+            "point",
+            "raster"
+          ]
+        },
+        "data": {
+          "$ref": "#/$defs/data"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/filter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "renderer": {
+          "description": "null: the features are not drawn, only their labels (a vector layer that only carries names)."
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/size"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sortBy": {
           "anyOf": [
             {
               "type": "object",
-              "required": ["field"],
-              "properties": { "field": { "type": "string", "minLength": 1 }, "order": { "enum": ["asc", "desc"] } }
+              "required": [
+                "field"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "order": {
+                  "description": "Drawing order of the field's values: `asc` draws small values first (large on top), `desc` draws large values first (small on top).",
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ],
+                  "default": "asc"
+                }
+              }
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ]
         },
-        "labels": { "anyOf": [{ "$ref": "#/$defs/labels" }, { "type": "null" }] },
+        "labels": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/labels"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "legend": {
           "type": "object",
-          "properties": { "show": { "type": "boolean" }, "title": { "type": ["string", "null"] } }
+          "properties": {
+            "show": {
+              "type": "boolean"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "panel": {
+          "description": "Which panel of a multi-panel map the layer belongs to (an `extent.panels[].id`). Readers group layers by panel first.",
+          "type": "string",
+          "minLength": 1
         }
       },
-      "if": { "properties": { "geometry": { "const": "raster" } } },
-      "then": { "properties": { "renderer": { "$ref": "#/$defs/rasterRenderer" } } },
-      "else": { "properties": { "renderer": { "anyOf": [{ "$ref": "#/$defs/vectorRenderer" }, { "type": "null" }] } } }
+      "if": {
+        "properties": {
+          "geometry": {
+            "const": "raster"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "renderer": {
+            "$ref": "#/$defs/rasterRenderer"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "renderer": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/vectorRenderer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
     },
     "labelPlacement": {
       "type": "object",
-      "required": ["text", "position", "style"],
+      "required": [
+        "text",
+        "position",
+        "style"
+      ],
       "properties": {
-        "layer": { "description": "The label entry it belongs to.", "type": "string" },
-        "featureId": { "type": ["string", "number"] },
-        "text": { "type": "string" },
-        "position": { "$ref": "#/$defs/lngLat" },
-        "anchor": { "enum": ["center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"] },
-        "rotation": { "type": "number" },
-        "leader": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/lngLat" } },
-        "style": { "$ref": "#/$defs/textStyle" }
+        "layer": {
+          "description": "The label entry it belongs to.",
+          "type": "string"
+        },
+        "featureId": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/lngLat"
+        },
+        "anchor": {
+          "enum": [
+            "center",
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+          ]
+        },
+        "rotation": {
+          "description": "Degrees clockwise; 0 is horizontal.",
+          "type": "number",
+          "default": 0
+        },
+        "leader": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/lngLat"
+          }
+        },
+        "style": {
+          "$ref": "#/$defs/textStyle"
+        },
+        "leaderStroke": {
+          "description": "How the leader is drawn; without it readers use the text colour at 1 px.",
+          "$ref": "#/$defs/stroke"
+        }
       }
     },
     "extent": {
       "type": "object",
-      "required": ["bbox"],
+      "required": [
+        "bbox"
+      ],
       "properties": {
-        "bbox": { "description": "The map's visible area plus a margin.", "$ref": "#/$defs/bbox" },
+        "bbox": {
+          "description": "The map's visible area plus a margin.",
+          "$ref": "#/$defs/bbox"
+        },
         "panels": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "bbox"],
-            "properties": { "id": { "type": "string", "minLength": 1 }, "bbox": { "$ref": "#/$defs/bbox" } }
+            "required": [
+              "id",
+              "bbox"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bbox": {
+                "$ref": "#/$defs/bbox"
+              }
+            }
           }
         },
-        "scaleDenominator": { "type": "number", "exclusiveMinimum": 0 },
+        "scaleDenominator": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
         "print": {
           "type": "object",
-          "required": ["widthCm", "heightCm", "dpi"],
+          "required": [
+            "widthCm",
+            "heightCm",
+            "dpi"
+          ],
           "properties": {
-            "widthCm": { "type": "number", "exclusiveMinimum": 0 },
-            "heightCm": { "type": "number", "exclusiveMinimum": 0 },
-            "dpi": { "type": "number", "exclusiveMinimum": 0 }
+            "widthCm": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "heightCm": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "dpi": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
           }
         }
       }
@@ -407,32 +1239,91 @@
     "font": {
       "description": "Same shape as gis-composer's render.fonts[] entries.",
       "type": "object",
-      "required": ["family"],
+      "required": [
+        "family"
+      ],
       "properties": {
-        "family": { "type": "string", "minLength": 1 },
-        "file": { "type": "string" },
-        "sha256": { "$ref": "#/$defs/sha256" },
+        "family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
         "names": {
           "anyOf": [
             {
               "type": "object",
               "properties": {
-                "family": { "type": "string" },
-                "subfamily": { "type": "string" },
-                "fullName": { "type": "string" },
-                "postScriptName": { "type": "string" },
+                "family": {
+                  "type": "string"
+                },
+                "subfamily": {
+                  "type": "string"
+                },
+                "fullName": {
+                  "type": "string"
+                },
+                "postScriptName": {
+                  "type": "string"
+                },
                 "localized": {
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "required": ["language"],
-                    "properties": { "language": { "type": "string" }, "family": { "type": "string" }, "fullName": { "type": "string" } }
+                    "required": [
+                      "language"
+                    ],
+                    "properties": {
+                      "language": {
+                        "type": "string"
+                      },
+                      "family": {
+                        "type": "string"
+                      },
+                      "fullName": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ]
+        }
+      }
+    },
+    "note": {
+      "type": "object",
+      "required": [
+        "kind",
+        "reason"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "untranslated",
+            "approximated"
+          ]
+        },
+        "layer": {
+          "type": "string"
+        },
+        "panel": {
+          "type": "string"
+        },
+        "property": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }

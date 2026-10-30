@@ -63,6 +63,22 @@ class MapStyleSchema(unittest.TestCase):
             sortBy={"field": "amount", "order": "desc"})
         self.assertValid(circles)
 
+    def test_panels_background_notes_and_text(self):
+        sample = doc(panel="main", data={"path": "inputs/a.geojson", "kind": "vector"},
+                     labels={"field": "n", "enabled": True,
+                             "text": {"font": "GC Sans", "size": 12, "color": "#333333", "opacity": 0.9, "letterSpacing": 0.08,
+                                      "halo": {"color": "#FFFFFF", "width": 2, "opacity": 0.78, "blur": 0.6},
+                                      "box": {"fill": {"color": "#FFFFFF", "opacity": 0.8}, "padding": 2}}})
+        sample["background"] = {"color": "#B4D6E2"}
+        sample["extent"] = {"bbox": [114.0, 22.5, 114.1, 22.6], "panels": [{"id": "main", "bbox": [114.0, 22.5, 114.1, 22.6]}]}
+        sample["notes"] = [{"kind": "approximated", "panel": "main", "layer": "a", "property": "text-halo-blur", "reason": "no field"}]
+        sample["labelPlacements"] = [{"text": "x", "position": [114.05, 22.55], "rotation": 15,
+                                      "leader": [[114.06, 22.54], [114.05, 22.55]], "leaderStroke": {"color": "#666666", "width": 0.8},
+                                      "style": {"size": 12, "color": "#000000"}}]
+        self.assertValid(sample)
+        self.assertValid(doc(geometry="point", renderer={"type": "single", "symbol": {
+            "marker": {"shape": "arrow", "size": 8, "rotation": 90}, "fill": {"color": "#000000"}}}))
+
     def test_unknown_fields_are_allowed(self):
         sample = doc()
         sample["futureField"] = {"x": 1}
@@ -82,6 +98,9 @@ class MapStyleSchema(unittest.TestCase):
             "compare without value": doc(filter={"field": "s", "op": "=="}),
             "empty symbol": doc(renderer={"type": "single", "symbol": {}}),
             "labels with field and template": doc(labels={"field": "n", "template": "{n}", "text": {"size": 12, "color": "#000000"}}),
+            "unknown marker shape": doc(geometry="point", renderer={"type": "single", "symbol": {"marker": {"shape": "airport", "size": 6}}}),
+            "unknown data kind": doc(data={"path": "inputs/a.geojson", "kind": "database"}),
+            "empty panel": doc(panel=""),
         }
         for name, sample in cases.items():
             with self.subTest(name):
@@ -90,6 +109,9 @@ class MapStyleSchema(unittest.TestCase):
             "version 2": lambda d: d.update(schema_version=2),
             "no layers": lambda d: d.update(layers=[]),
             "points units": lambda d: d.update(units={"size": "pt"}),
+            "note without reason": lambda d: d.update(notes=[{"kind": "approximated"}]),
+            "unknown note kind": lambda d: d.update(notes=[{"kind": "lost", "reason": "x"}]),
+            "background with alpha": lambda d: d.update(background={"color": "#B4D6E2CC"}),
             "latitude out of range": lambda d: d.update(labelPlacements=[{"text": "x", "position": [114, 95],
                                                                            "style": {"size": 12, "color": "#000000"}}]),
         }.items():
