@@ -150,7 +150,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - **引擎仍可独立使用**：gis-kit 不依赖项目存在，`--output` 可以是任意新目录；只有交给 Composer 时才发布到 `inputs/`。
 - **共享大数据不进项目**：底图、DEM、geo-assets 在项目清单里声明名称，各设备各自配置路径，见 gis-composer 文档。
 - **按页面尺寸出图**：图要放进汇报页时，出版参数写在项目清单与地图清单里（gis-composer 维护），放置尺寸随 [map-legend](#map-legend) 交给页面。
-- **plan-deck（暂缓）**：规划汇报与地图将共用同一个项目根，页面视觉系统导出为项目主题，使 PPT 与图纸同色系。plan-deck 尚无运行时，目录名和映射规则等它实现时再定。
+- **plan-deck**：读 gis-composer 项目的发布版（`releases/vN/`）放图、按 [map-legend](#map-legend) 画可编辑图例，页面配色经 `theme resolve` 从项目主题取，和图纸同色系；自己的 `style.json`、`style.md` 放在汇报稿旁，用 `mapTheme` 指向 composer 项目，不写入项目目录。细节见 plan-deck 的 `docs/architecture.md`。
 - **版本配对**：目前只有 gis-composer 读写清单，gis-kit 只遵守 `inputs/` 的路径规则、不读写清单，因此没有跨引擎的 capabilities 配对。等另一个引擎开始读写清单时，再由双方在 `capabilities` 中声明 `project` 的版本。
 
 ## map-legend
@@ -159,7 +159,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 - 每张渲染出的图旁写一份 `<图>.legend.json`，记录渲染时按主题解析出的图例（最终色值）和放置尺寸。
 - 用法：图要放进汇报页、由页面画可编辑图例时，地图清单关掉 PNG 里的图例，出页脚本读这份文件画图例、按尺寸放图，不手抄颜色和标签。
-- `rerun` 把它当作交付物逐字节比对。读取方目前是 Agent 和项目里的出页脚本（plan-deck 尚无运行时），都不是引擎，因此没有 capabilities 配对。
+- `rerun` 把它当作交付物逐字节比对。读取方是 Agent、项目里的出页脚本和 plan-deck 运行时（只从发布版读）；plan-deck 不在本仓库的引擎配对里，因此没有 capabilities 配对。
 
 ## semantics
 
