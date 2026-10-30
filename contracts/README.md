@@ -180,6 +180,7 @@ Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，
   "producer": {"engine": "gis-composer", "version": "0.1.0", "release": "v1", "map": "example-map"},
   "units": {"size": "px"},
   "dataRoot": "project",
+  "background": {"color": "#B4D6E2"},
   "extent": {"bbox": [114.00, 22.50, 114.10, 22.60], "print": {"widthCm": 10, "heightCm": 14, "dpi": 300}},
   "layers": [
     {"id": "ground", "group": "ground", "geometry": "polygon", "data": {"path": "@basemap/land.geojson"},
@@ -204,13 +205,15 @@ Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，
 }
 ```
 
-- **图层**：`layers` 按自下而上的绘制顺序排。同一份数据画成多层的（面、描边、白色衬边），写成多个图层、引用同一个 `data`。`group` 沿用 composer 的绘制分组。
-- **数据路径**：`data.path` 相对 `dataRoot`（项目根或本文件所在目录），外部数据根写 `@<根名>/…`；不允许绝对路径和 `..`。数据本身保持原坐标系。
-- **渲染方式**：矢量的 `single`、`categorized`、`graduated`、`rule` 与 gis-view 的样式模型一一对应；栅格有 `pseudocolor`、`palette`、`rgb`。符号分 `fill`、`stroke`、`marker` 三部分，颜色写 `#RRGGBB`，透明度另写。比例圆用图层上的 `size`（字段值按 `linear` 或 `sqrt` 映射到半径）。只用来放标注、要素本身不画的矢量图层，`renderer` 写 `null`。
+- **图层**：`layers` 按自下而上的绘制顺序排。同一份数据画成多层的（面、描边、白色衬边），写成多个图层、引用同一个 `data`。`group` 沿用 composer 的绘制分组。多面板图（hero 等）仍是一份文档：图层带 `panel`，对应 `extent.panels[].id`，读的一方先按面板分组、再按 `group` 分，免得主图和插图的同一份数据叠在一起。
+- **背景**：顶层 `background` 是没有图层覆盖处的颜色，比如陆地底图下面的水体。
+- **数据路径**：`data.path` 相对 `dataRoot`（项目根或本文件所在目录），外部数据根写 `@<根名>/…`；不允许绝对路径和 `..`。数据本身保持原坐标系。`data.kind` 可选，标出是矢量、栅格还是瓦片；瓦片不能按图幅裁切。
+- **渲染方式**：矢量的 `single`、`categorized`、`graduated`、`rule` 与 gis-view 的样式模型一一对应；栅格有 `pseudocolor`、`palette`、`rgb`。符号分 `fill`、`stroke`、`marker` 三部分，颜色写 `#RRGGBB`，透明度另写。点图层的符号要有 `marker`，没有时读的一方画 6 px 圆并报告。比例圆用图层上的 `size`：字段值按 `linear` 或 `sqrt` 映射到半径，公式写在 Schema 里，`clamp` 默认为真。`sortBy.order` 是字段值的绘制顺序：`asc` 先画小值、大值在上，`desc` 先画大值、小值在上。描边的 `cap`、`join` 默认是 `butt`、`miter`。栅格 `stops` 的值是数据值，`stretch` 只记录怎么定的，读的一方不重算。只用来放标注、要素本身不画的矢量图层，`renderer` 写 `null`。
 - **单位和坐标**：尺寸一律是 CSS 像素（1 px = 1/96 英寸）；`extent`、`labelPlacements` 用经纬度（EPSG:4326）。
-- **筛选**：只用结构化的一小套（`field`/`op`/`value`，加 `all`、`any`、`not`）。装不下的条件写 `{"expression": …, "dialect": "qgis"}`，读的一方不认识这种方言时按“没有筛选”处理，并列出跳过的部分，不能悄悄丢掉。
-- **标注**：图层上的 `labels` 是平台自己排的标注，composer 导出时写 `enabled: false`；composer 预先算好的位置写在顶层 `labelPlacements`，可以带引线。gis-kit 打包时把它写成点图层，和 PNG 一致，也能逐个拖动。
-- **字体**：`fonts[]` 与 gis-composer `render.fonts[]` 的形状相同（含 name 表 `names`）。
+- **筛选**：只用结构化的一小套（`field`/`op`/`value`，加 `all`、`any`、`not`）。NULL 按 MapLibre 的规则：`!=` 和 `notIn` 对 NULL 为真，其余比较和 `in` 为假。装不下的条件写 `{"expression": …, "dialect": "qgis"}`。读的一方不认识这种方言时要列出跳过的部分，不能悄悄丢掉：用作图层筛选时当作没有筛选；用作规则的筛选时跳过这条规则，不让它接住其余要素。
+- **标注**：图层上的 `labels` 是平台自己排的标注。生产方已经把同一批标注写进 `labelPlacements` 时写 `enabled: false`（composer 预先算好的布局）；要平台自己排时写 `true`（composer 交给 MapLibre 排的标注、gis-view）。`labelPlacements` 是预先算好的位置，可以带引线和 `leaderStroke`，`rotation` 按顺时针度数。gis-kit 打包时把它写成点图层，和 PNG 一致，也能逐个拖动。文字样式可写透明度、晕边透明度与模糊、字距（em）和底框 `box`。
+- **字体**：`fonts[]` 与 gis-composer `render.fonts[]` 的形状相同（含 name 表 `names`）。`textStyle.font` 可以是主题里的别名（如 `GC Sans`），读的一方从 `fonts[]` 里同名条目的 `names` 取实际安装的字体名。
+- **近似与遗漏**：顶层 `notes` 记下生产方没能原样表达的地方，`untranslated` 是没写进来的，`approximated` 是近似写的。读的一方应转告用户。
 - v1 不含影片、三维和标注密度这类 composer 特有的设置。
 
 ## semantics
