@@ -3,6 +3,7 @@ import json
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -60,7 +61,7 @@ class FakeEngines(unittest.TestCase):
         self.assertEqual(result["status"], "ok", result)
 
     def test_not_configured(self):
-        report = doctor.run({"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"})
+        report = doctor.run({"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env", "HOME": str(self.tmp)})
         self.assertEqual({e["status"] for e in report["engines"]}, {"not_configured"})
 
     def test_missing_executable(self):
@@ -125,11 +126,104 @@ class FakeEngines(unittest.TestCase):
         self.assertEqual(result["status"], "warn")
 
     def test_exit_code(self):
-        with mock.patch.dict(os.environ, {"GIS_VIEW_CMD": self.engine("x", "{}"), "GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"}, clear=True), \
+        isolated = {"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env", "HOME": str(self.tmp)}
+        with mock.patch.dict(os.environ, {"GIS_VIEW_CMD": self.engine("x", "{}"), **isolated}, clear=True), \
                 mock.patch("sys.stdout"):
             self.assertEqual(doctor.main([]), 1)
-        with mock.patch.dict(os.environ, {"GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"}, clear=True), mock.patch("sys.stdout"):
+        with mock.patch.dict(os.environ, isolated, clear=True), mock.patch("sys.stdout"):
             self.assertEqual(doctor.main(["--json"]), 0)
+
+
+def git(cwd, *args):
+    subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
+                   env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+
+
+class InstalledSkills(unittest.TestCase):
+    """Installed engine skills: links and copies in step say nothing; stale copies warn and list files."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="gis-plugin-test-"))
+        self.home = self.tmp / "home"
+        self.kit = self.tmp / "src" / "gis-kit"
+        (self.kit / "scripts").mkdir(parents=True)
+        (self.kit / "SKILL.md").write_text("---\nname: gis-kit\n---\n", encoding="utf-8")
+        (self.kit / "scripts" / "gis.py").write_text("print('v1')\n", encoding="utf-8")
+        (self.kit / "scripts" / "package.py").write_text("", encoding="utf-8")
+        (self.kit / "notes.tmp").write_text("untracked\n", encoding="utf-8")
+        git(self.kit, "init", "-q", "-b", "main")
+        git(self.kit, "add", "SKILL.md", "scripts")
+        git(self.kit, "commit", "-q", "-m", "one")
+        self.composer = self.tmp / "src" / "gis-composer"
+        (self.composer / "src").mkdir(parents=True)
+        (self.composer / "SKILL.md").write_text(
+            "---\nname: gis-composer\n---\n\n本 skill 的目录即运行时仓库。\n\n用法。\n", encoding="utf-8")
+        (self.composer / "src" / "agent-entry.js").write_text("", encoding="utf-8")
+        self.environ = {
+            "HOME": str(self.home),
+            "GIS_PLUGIN_CONFIG": str(self.tmp / "none.env"),
+            "GIS_KIT_CMD": f"python3 {self.kit}/scripts/gis.py",
+            "GIS_COMPOSER_CMD": f"node {self.composer}/src/agent-entry.js",
+        }
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def install(self, harness, skill):
+        path = self.home / harness / "skills" / skill
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def skills(self):
+        return {(s["skill"], s["harness"]): s for s in doctor.check_skills(doctor.engine_settings(self.environ), self.environ)}
+
+    def test_link_is_ok(self):
+        self.install(".dsh", "gis-kit").symlink_to(self.kit)
+        item = self.skills()[("gis-kit", "dsh")]
+        self.assertEqual((item["kind"], item["status"]), ("link", "ok"))
+
+    def test_copy_in_step_is_ok(self):
+        shutil.copytree(self.kit, self.install(".claude", "gis-kit"), ignore=shutil.ignore_patterns("notes.tmp"))
+        (self.install(".claude", "gis-kit") / "extra.txt").write_text("", encoding="utf-8")
+        item = self.skills()[("gis-kit", "CC")]
+        self.assertEqual((item["kind"], item["status"]), ("copy", "ok"), item)
+
+    def test_stale_copy_warns_with_files(self):
+        copy = self.install(".claude", "gis-kit")
+        shutil.copytree(self.kit, copy)
+        (copy / "scripts" / "package.py").unlink()
+        (copy / "scripts" / "gis.py").write_text("print('v0')\n", encoding="utf-8")
+        item = self.skills()[("gis-kit", "CC")]
+        self.assertEqual((item["kind"], item["status"]), ("copy", "warn"))
+        self.assertEqual(item["missing"], ["scripts/package.py"])
+        self.assertEqual(item["different"], ["scripts/gis.py"])
+        text = doctor.render_text({"python": "3", "engines": [], "skills": [item]})
+        self.assertIn("scripts/package.py", text)
+        self.assertIn("update_engine_skills.py", text)
+
+    def test_entry_with_runtime_line_rewritten_is_ok(self):
+        entry = self.install(".codex", "gis-composer")
+        entry.mkdir()
+        (entry / "SKILL.md").write_text(
+            f"---\nname: gis-composer\n---\n\n运行时仓库在 `{self.composer}`。\n\n用法。\n", encoding="utf-8")
+        item = self.skills()[("gis-composer", "Codex")]
+        self.assertEqual((item["kind"], item["status"]), ("entry", "ok"), item)
+        (entry / "SKILL.md").write_text(
+            f"---\nname: gis-composer\n---\n\n运行时仓库在 `{self.composer}`。\n\n旧用法。\n", encoding="utf-8")
+        item = self.skills()[("gis-composer", "Codex")]
+        self.assertEqual((item["status"], item["different"]), ("warn", ["SKILL.md"]))
+
+    def test_only_installed_skills_are_listed_and_quiet_when_ok(self):
+        self.install(".dsh", "gis-kit").symlink_to(self.kit)
+        report = doctor.run(self.environ)
+        self.assertEqual([(s["skill"], s["harness"]) for s in report["skills"]], [("gis-kit", "dsh")])
+        self.assertNotIn("skill gis-kit", doctor.render_text(report))
+
+    def test_unknown_source_is_reported(self):
+        shutil.copytree(self.kit, self.install(".claude", "gis-kit"))
+        del self.environ["GIS_KIT_CMD"]
+        self.assertEqual(self.skills()[("gis-kit", "CC")]["status"], "unknown")
 
 
 class ValidatorMatchesSchema(unittest.TestCase):

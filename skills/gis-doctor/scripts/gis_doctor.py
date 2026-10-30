@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Check GIS engines via `<engine> capabilities --json`. Standard library only."""
+"""Check GIS engines via `<engine> capabilities --json`, and the engine skills installed in each harness
+against their source repositories. Standard library only; never installs or updates anything."""
 
 import argparse
+import difflib
+import filecmp
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 ENGINES = (
     # (engine, env var, minimum engine_version)
@@ -24,6 +28,9 @@ SHELL_READS = {"describe": [1], "semantics": [1], "sources": [1]}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?$")
 TOP_FIELDS = ("contract", "schema_version", "engine", "engine_version", "commands", "contracts", "features")
+LIST_MAX = 10
+_UPDATER = Path(__file__).resolve().parents[3] / "scripts" / "update_engine_skills.py"
+UPDATE_SCRIPT = str(_UPDATER) if _UPDATER.is_file() else "<gis-plugin>/scripts/update_engine_skills.py"
 
 
 def engine_settings(environ):
@@ -194,13 +201,102 @@ def check_contracts(engines):
     return pairs
 
 
+def skill_dirs(environ):
+    """Where each harness keeps skills; same list as scripts/update_engine_skills.py."""
+    home = Path(environ.get("HOME") or os.path.expanduser("~"))
+    return (
+        ("CC", Path(environ.get("CLAUDE_CONFIG_DIR") or home / ".claude") / "skills"),
+        ("Codex", Path(environ.get("CODEX_HOME") or home / ".codex") / "skills"),
+        ("agents", home / ".agents" / "skills"),
+        ("dsh", home / ".dsh" / "skills"),
+    )
+
+
+def source_repo(skill, command):
+    """The directory holding `<skill>`'s SKILL.md, found by walking up from the paths in its engine command."""
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return None
+    for token in argv:
+        path = Path(token).expanduser()
+        if not path.exists():
+            continue
+        for parent in [path, *path.parents]:
+            entry = parent / "SKILL.md"
+            if entry.is_file() and f"name: {skill}\n" in entry.read_text(encoding="utf-8"):
+                return parent
+    return None
+
+
+def _tracked_files(repo):
+    """Files tracked by git in the source repository that exist in its work tree, or None."""
+    try:
+        proc = subprocess.run(["git", "-C", str(repo), "ls-files", "-z"], capture_output=True,
+                              timeout=TIMEOUT_SECONDS, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode:
+        return None
+    names = [n for n in proc.stdout.decode("utf-8", "surrogateescape").split("\0") if n]
+    return [n for n in names if (repo / n).is_file()]
+
+
+def _entry_matches(entry, source):
+    """A Codex entry is the source SKILL.md with at most one line (where the runtime lives) rewritten."""
+    ops = [op for op in difflib.SequenceMatcher(None, entry, source, autojunk=False).get_opcodes() if op[0] != "equal"]
+    return not ops or (len(ops) == 1 and ops[0][0] == "replace" and ops[0][2] - ops[0][1] == 1 == ops[0][4] - ops[0][3])
+
+
+def check_skill(skill, path, repo):
+    """Is the installed skill at `path` a link, or a copy in step with its source repository?"""
+    if path.is_symlink():
+        return {"kind": "link", "status": "ok", "message": f"软链 → {os.readlink(path)}"}
+    if [p.name for p in path.iterdir() if p.name != ".DS_Store"] == ["SKILL.md"]:
+        result = {"kind": "entry"}
+        if repo is None:
+            return {**result, "status": "unknown", "message": "找不到源仓库，未对比（检查 engines.env 中的引擎命令）"}
+        entry = (path / "SKILL.md").read_text(encoding="utf-8").splitlines()
+        if _entry_matches(entry, (repo / "SKILL.md").read_text(encoding="utf-8").splitlines()):
+            return {**result, "status": "ok", "message": "单文件入口，与源 SKILL.md 一致"}
+        return {**result, "status": "warn", "message": f"单文件入口与 {repo / 'SKILL.md'} 不同（不止运行时位置那一行）",
+                "different": ["SKILL.md"]}
+    result = {"kind": "copy"}
+    if repo is None:
+        return {**result, "status": "unknown", "message": "找不到源仓库，未对比（检查 engines.env 中的引擎命令）"}
+    files = _tracked_files(repo)
+    if files is None:
+        return {**result, "status": "unknown", "message": f"无法列出 {repo} 的 git 文件，未对比"}
+    missing = [n for n in files if not (path / n).is_file()]
+    different = [n for n in files if n not in missing and not filecmp.cmp(repo / n, path / n, shallow=False)]
+    if not missing and not different:
+        return {**result, "status": "ok", "message": f"副本，与 {repo} 一致"}
+    return {**result, "status": "warn", "message": f"副本落后于 {repo}：缺少 {len(missing)} 个、不同 {len(different)} 个文件",
+            "missing": missing, "different": different}
+
+
+def check_skills(settings, environ):
+    """Every engine skill installed in a harness; links and copies in step with the source come back as ok."""
+    results = []
+    for engine, env_var, _ in ENGINES:
+        repo = source_repo(engine, settings.get(env_var, ""))
+        for harness, base in skill_dirs(environ):
+            path = base / engine
+            if not (path.is_symlink() or path.is_dir()):
+                continue
+            results.append({"skill": engine, "harness": harness, "path": str(path), **check_skill(engine, path, repo)})
+    return results
+
+
 def run(environ):
-    engines = [check_engine(name, var, minimum, engine_settings(environ)) for name, var, minimum in ENGINES]
+    settings = engine_settings(environ)
+    engines = [check_engine(name, var, minimum, settings) for name, var, minimum in ENGINES]
     return {
         "doctor": "gis-plugin",
         "python": sys.version.split()[0],
         "engines": engines,
         "contracts": check_contracts(engines),
+        "skills": check_skills(settings, environ),
     }
 
 
@@ -224,6 +320,18 @@ def render_text(report):
     for pair in report.get("contracts", []):
         lines.append(f"- 约定 {pair['contract']}：{pair['writer']} → {pair['reader']}，"
                      f"{'兼容' if pair['status'] == 'ok' else '不兼容'}（{pair['message']}）")
+    stale = [item for item in report.get("skills", []) if item["status"] != "ok"]
+    for item in stale:
+        lines.append(f"- skill {item['skill']}（{item['harness']}，{item['path']}）："
+                     f"{'落后' if item['status'] == 'warn' else '未对比'} — {item['message']}")
+        for key, label in (("missing", "缺少"), ("different", "不同")):
+            names = item.get(key, [])
+            if names:
+                shown = "、".join(names[:LIST_MAX]) + (f" 等 {len(names)} 个" if len(names) > LIST_MAX else "")
+                lines.append(f"    {label}：{shown}")
+    if any(item["status"] == "warn" for item in stale):
+        lines.append(f"  已装的 skill 落后时，模型读到的说明和脚本与引擎实际不符。是否更新由用户决定："
+                     f"python3 {UPDATE_SCRIPT} --dry-run 先看会做什么")
     return "\n".join(lines)
 
 

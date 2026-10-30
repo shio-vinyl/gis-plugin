@@ -33,7 +33,7 @@
 | hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
-| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么 |
+| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；对比各宿主已装的引擎 skill 与源仓库，报告落后的副本（不更新） |
 | `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的引擎 skill；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
 | `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
