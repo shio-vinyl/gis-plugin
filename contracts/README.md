@@ -182,38 +182,49 @@ Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，
   "dataRoot": "project",
   "background": {"color": "#B4D6E2"},
   "extent": {"bbox": [114.00, 22.50, 114.10, 22.60], "print": {"widthCm": 10, "heightCm": 14, "dpi": 300}},
+  "fonts": [{"family": "GC Sans", "weight": 400, "file": "assets/fonts/sans-regular.otf"},
+            {"family": "GC Sans", "weight": 500, "file": "assets/fonts/sans-medium.otf"}],
   "layers": [
     {"id": "ground", "group": "ground", "geometry": "polygon", "data": {"path": "@basemap/land.geojson"},
      "renderer": {"type": "single", "symbol": {"fill": {"color": "#E1E1E1", "opacity": 1}}}, "legend": {"show": false}},
     {"id": "parcels", "title": "用地分类", "group": "fills", "geometry": "polygon", "data": {"path": "inputs/analysis/parcels.geojson"},
      "renderer": {"type": "categorized", "field": "类别",
                   "classes": [{"value": "A 类", "label": "A 类（47 块）", "symbol": {"fill": {"color": "#ED7D31", "opacity": 1}}},
-                              {"value": "B 类", "label": "B 类（73 块）", "symbol": {"fill": {"color": "#4F81BD", "opacity": 1}}}],
+                              {"value": "B 类", "label": "B 类（73 块）", "symbol": {"fill": {"color": "#4F81BD", "opacity": 1,
+                                         "pattern": {"kind": "hatch", "angle": 45, "spacing": 6, "width": 0.8, "color": "#FFFFFF"}}}}],
                   "default": null},
      "legend": {"show": true, "title": "用地分类"}},
     {"id": "parcels-outline", "group": "lines", "geometry": "polygon", "data": {"path": "inputs/analysis/parcels.geojson"},
      "renderer": {"type": "single", "symbol": {"stroke": {"color": "#FFFFFF", "width": 0.8, "opacity": 0.9}}}, "legend": {"show": false}},
+    {"id": "routes", "title": "线路", "group": "lines", "geometry": "line", "data": {"path": "inputs/analysis/routes.geojson", "kind": "vector"},
+     "renderer": {"type": "single", "symbol": {"stroke": {"color": "#C00000", "width": 1.5}, "fill": {"color": "#C00000"},
+                                               "marker": {"shape": "chevron", "size": 7, "placement": "line", "spacing": 80}}}},
     {"id": "names", "group": "labels", "geometry": "point", "data": {"path": "inputs/analysis/names.geojson"},
      "renderer": null,
-     "labels": {"field": "name", "text": {"font": "GC Sans", "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2}},
+     "labels": {"field": "name", "text": {"font": "GC Sans", "weight": 500, "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2}},
                 "placement": "point", "enabled": false}}
   ],
   "labelPlacements": [
     {"layer": "names", "text": "示例片区", "position": [114.05, 22.54], "anchor": "center",
-     "style": {"font": "GC Sans", "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2}}}
+     "style": {"font": "GC Sans", "weight": 500, "size": 13.4, "color": "#333333", "halo": {"color": "#FFFFFF", "width": 2},
+               "box": {"fill": {"color": "#FFFFFF", "opacity": 0.8}, "padding": [2, 4]}}}
   ]
 }
 ```
 
-- **图层**：`layers` 按自下而上的绘制顺序排。同一份数据画成多层的（面、描边、白色衬边），写成多个图层、引用同一个 `data`。`group` 沿用 composer 的绘制分组。多面板图（hero 等）仍是一份文档：图层带 `panel`，对应 `extent.panels[].id`，读的一方先按面板分组、再按 `group` 分，免得主图和插图的同一份数据叠在一起。
+- **图层**：`layers` 按自下而上的绘制顺序排。同一份数据画成多层的（面、描边、白色衬边），写成多个图层、引用同一个 `data`。`group` 沿用 composer 的绘制分组。多面板图（hero 等）仍是一份文档：图层带 `panel`，对应 `extent.panels[].id`，读的一方先按面板分组、再按 `group` 分，免得主图和插图的同一份数据叠在一起。`extent.panels[].frame` 可选，是面板在页面上的位置和大小 `{x, y, width, height}`：单位厘米，原点在页面（`extent.print`）左上角，y 向下；`panels` 里靠后的面板画在上面。导出版式（QGIS `.qpt`、ArcGIS Pro `.pagx`）时用。
 - **背景**：顶层 `background` 是没有图层覆盖处的颜色，比如陆地底图下面的水体。
-- **数据路径**：`data.path` 相对 `dataRoot`（项目根或本文件所在目录），外部数据根写 `@<根名>/…`；不允许绝对路径和 `..`。数据本身保持原坐标系。`data.kind` 可选，标出是矢量、栅格还是瓦片；瓦片不能按图幅裁切。
+- **数据路径**：`data.path` 相对 `dataRoot`（项目根或本文件所在目录），外部数据根写 `@<根名>/…`；不允许绝对路径和 `..`。数据本身保持原坐标系。`data.kind` 可选，标出是矢量、栅格还是瓦片；瓦片不能按图幅裁切。写了 `kind` 时它和 `geometry` 要对得上，Schema 会检查：`raster`、`rasterTiles` 只配 `raster`，`vector`、`vectorTiles` 配 `polygon`、`line`、`point`。
 - **渲染方式**：矢量的 `single`、`categorized`、`graduated`、`rule` 与 gis-view 的样式模型一一对应；栅格有 `pseudocolor`、`palette`、`rgb`。符号分 `fill`、`stroke`、`marker` 三部分，颜色写 `#RRGGBB`，透明度另写。点图层的符号要有 `marker`，没有时读的一方画 6 px 圆并报告。比例圆用图层上的 `size`：字段值按 `linear` 或 `sqrt` 映射到半径，公式写在 Schema 里，`clamp` 默认为真。`sortBy.order` 是字段值的绘制顺序：`asc` 先画小值、大值在上，`desc` 先画大值、小值在上。描边的 `cap`、`join` 默认是 `butt`、`miter`。栅格 `stops` 的值是数据值，`stretch` 只记录怎么定的，读的一方不重算。只用来放标注、要素本身不画的矢量图层，`renderer` 写 `null`。
+  - **标记**：`marker.rotation` 按顺时针度数，`rotationField` 指一个数值字段，值加在 `rotation` 上（NULL 不加）。`shape: "svg"` 时用 `marker.svg: {path, sha256}` 引用一个 SVG，路径规则同 `data.path`，两项都必填，读的一方核对哈希、不符就拒绝；SVG 按自身颜色画，`fill`、`stroke` 不作用于它，`size` 是图像较长的一边。用 SVG 而不是继续扩充形状名，是因为 airport、crosshair 这类图标列不完，而 SVG 在 QGIS（SVG 标记）、ArcGIS（图片标记）里都能原样用，MapLibre 一侧由 composer 自己栅格化。
+  - **沿线标记**：线图层（和面的边线）上的 `marker` 写 `placement: "line"` 时沿线重复，`spacing`（px，必填）是相邻两个的间距，第一个离起点半个间距；`alongLine` 默认为真，标记随线的方向转，此时 `rotation` 相对线的方向（0 指向线的终点方向）。点图层只用默认的 `point`。
+  - **晕线**：`fill.pattern` 是画在填色上面的平行线，`kind` 为 `hatch` 或 `crossHatch`（再加一组垂直的线），`angle` 按从水平起逆时针的度数（0 是 `—`，45 是 `/`），`spacing` 是线距、`width` 是线宽（px），另有 `color`、`opacity`。`fill.color` 是线下面的底色，只要线时把 `fill.opacity` 写 0。只做晕线、不做 SVG 图案：晕线在 QGIS（线图案填充）、ArcGIS（CIMHatchFill）里都是原生的，几个数就能写清；SVG 图案各平台的支持和平铺方式不一致。
 - **单位和坐标**：尺寸一律是 CSS 像素（1 px = 1/96 英寸）；`extent`、`labelPlacements` 用经纬度（EPSG:4326）。
 - **筛选**：只用结构化的一小套（`field`/`op`/`value`，加 `all`、`any`、`not`）。NULL 按 MapLibre 的规则：`!=` 和 `notIn` 对 NULL 为真，其余比较和 `in` 为假。装不下的条件写 `{"expression": …, "dialect": "qgis"}`。读的一方不认识这种方言时要列出跳过的部分，不能悄悄丢掉：用作图层筛选时当作没有筛选；用作规则的筛选时跳过这条规则，不让它接住其余要素。
-- **标注**：图层上的 `labels` 是平台自己排的标注。生产方已经把同一批标注写进 `labelPlacements` 时写 `enabled: false`（composer 预先算好的布局）；要平台自己排时写 `true`（composer 交给 MapLibre 排的标注、gis-view）。`labelPlacements` 是预先算好的位置，可以带引线和 `leaderStroke`，`rotation` 按顺时针度数。gis-kit 打包时把它写成点图层，和 PNG 一致，也能逐个拖动。文字样式可写透明度、晕边透明度与模糊、字距（em）和底框 `box`。
-- **字体**：`fonts[]` 与 gis-composer `render.fonts[]` 的形状相同（含 name 表 `names`）。`textStyle.font` 可以是主题里的别名（如 `GC Sans`），读的一方从 `fonts[]` 里同名条目的 `names` 取实际安装的字体名。
+- **标注**：图层上的 `labels` 是平台自己排的标注。生产方已经把同一批标注写进 `labelPlacements` 时写 `enabled: false`（composer 预先算好的布局）；要平台自己排时写 `true`（composer 交给 MapLibre 排的标注、gis-view）。`labelPlacements` 是预先算好的位置，可以带引线和 `leaderStroke`，`rotation` 按顺时针度数；`panel` 写它画在哪个面板，不写时按 `layer` 所在的面板，两样都没有就属于整张图。gis-kit 打包时把它写成点图层，和 PNG 一致，也能逐个拖动。文字样式可写字重 `weight`、透明度、晕边透明度与模糊、字距（em）和底框 `box`。`box.padding` 可以是一个数、`[纵, 横]` 或 `[上, 右, 下, 左]`（同 CSS）。`halo.blur` 按 MapLibre 的含义（px，向外渐隐），允许近似实现（QGIS 用缓冲上的模糊效果，没有的平台画清晰晕边），不必报告。
+- **字体**：`fonts[]` 与 gis-composer `render.fonts[]` 的形状相同（含 name 表 `names`）。`textStyle.font` 可以是主题里的别名（如 `GC Sans`），读的一方从 `fonts[]` 里同名条目的 `names` 取实际安装的字体名。`fonts[].weight` 和 `textStyle.weight` 是 CSS 字重（100–900，400 常规、700 粗体），数字或数字串（composer 现在写 `"500"`）都行。同一个别名有多个条目时，读的一方取字重相等的那个（没写的一方按 400 算）；没有相等的就按 CSS 的字体匹配规则取最近的，并报告替换。
 - **近似与遗漏**：顶层 `notes` 记下生产方没能原样表达的地方，`untranslated` 是没写进来的，`approximated` 是近似写的。读的一方应转告用户。
+- **暂不纳入**：聚焦压暗（composer 的 composite：遮罩以外去饱和、再向背景色混合）和 `line-blur`。混色那一半可以不加字段原样表达：生产方写一个“图幅减去聚焦区”的面图层，用背景色、透明度取混合比例，效果与混合相同；去饱和在 ArcGIS 等平台没有对应，记 `approximated`。`line-blur` 主要是边缘柔化，QGIS 要靠图层效果、ArcGIS 没有对应，照清晰线画并记 `approximated`。等有平台能还原、也确实需要时再加字段。
 - v1 不含影片、三维和标注密度这类 composer 特有的设置。
 
 ## semantics
