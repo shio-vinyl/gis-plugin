@@ -17,6 +17,10 @@ COMPOSER_SKILL = (
     "---\nname: gis-composer\ndescription: x\n---\n\n# 地图\n\n"
     "本 skill 的目录即 gis-composer 运行时仓库，下文记为 `$R`。引擎随仓库维护。\n"
 )
+VIEW_SKILL = (
+    "---\nname: gis-view\ndescription: x\n---\n\n# 查看\n\n"
+    "`GV` 为本 skill 的实际目录（即 gis-view 仓库），解释器为其中的 `.venv`：\n"
+)
 
 
 def git(cwd, *args):
@@ -41,11 +45,18 @@ class UpdateEngineSkills(unittest.TestCase):
         (self.composer / "src").mkdir(parents=True)
         (self.composer / "SKILL.md").write_text(COMPOSER_SKILL, encoding="utf-8")
         (self.composer / "src" / "agent-entry.js").write_text("", encoding="utf-8")
+        self.view = self.tmp / "src" / "gis-view"
+        (self.view / ".venv" / "bin").mkdir(parents=True)
+        (self.view / "scripts").mkdir()
+        (self.view / "SKILL.md").write_text(VIEW_SKILL, encoding="utf-8")
+        (self.view / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+        (self.view / "scripts" / "gis-view.py").write_text("", encoding="utf-8")
         config = self.home / ".config" / "gis-plugin"
         config.mkdir(parents=True)
         (config / "engines.env").write_text(
             f'GIS_KIT_CMD="python3 {self.kit}/scripts/gis.py"\n'
-            f'GIS_COMPOSER_CMD="node {self.composer}/src/agent-entry.js"\n', encoding="utf-8")
+            f'GIS_COMPOSER_CMD="node {self.composer}/src/agent-entry.js"\n'
+            f'GIS_VIEW_CMD="{self.view}/.venv/bin/python {self.view}/scripts/gis-view.py"\n', encoding="utf-8")
         self.environ = {"HOME": str(self.home), "PATH": os.environ.get("PATH", "")}
 
     def tearDown(self):
@@ -100,6 +111,18 @@ class UpdateEngineSkills(unittest.TestCase):
         self.assertIn("（本 skill 目录只是 Codex 入口，不含运行时）。引擎随仓库维护。", text)
         self.assertNotIn("本 skill 的目录即", text)
         self.assertEqual(self.result(updater.run(self.environ), "gis-composer", "Codex")["message"], "已是最新")
+
+    def test_view_codex_entry_is_rebuilt(self):
+        entry = self.skills(".codex") / "gis-view"
+        entry.mkdir()
+        target = entry / "SKILL.md"
+        target.write_text("old\n", encoding="utf-8")
+        item = self.result(updater.run(self.environ), "gis-view", "Codex")
+        self.assertEqual(item["status"], "ok")
+        text = target.read_text(encoding="utf-8")
+        self.assertIn(f"`GV` 为 gis-view 仓库 `{self.view}`（本 skill 目录只是 Codex 入口，不含运行时），解释器为其中的 `.venv`：", text)
+        self.assertNotIn("本 skill 的实际目录", text)
+        self.assertEqual(self.result(updater.run(self.environ), "gis-view", "Codex")["message"], "已是最新")
 
     def test_dry_run_writes_nothing(self):
         target = self.codex_entry()

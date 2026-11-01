@@ -55,7 +55,7 @@ hooks/scripts/                    标准库 Python
 
 各引擎的 skill 不随外壳安装：把 gis-kit、gis-view、gis-composer 的仓库目录分别软链或复制为 `~/.claude/skills/<name>`、`~/.codex/skills/<name>`、`~/.dsh/skills/<name>`，各自独立可用（gis-kit 另见其 README）。
 
-更新已装的引擎 skill（目前只含 gis-kit、gis-composer；gis-view 待完成后加入）：
+更新已装的引擎 skill（gis-kit、gis-composer、gis-view）：
 
 ```bash
 python3 scripts/update_engine_skills.py --dry-run

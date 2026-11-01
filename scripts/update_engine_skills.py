@@ -17,9 +17,10 @@ import sys
 from pathlib import Path
 
 ENGINES = (
-    # (skill, env var with the engine command). gis-view is left out until it is ready.
+    # (skill, env var with the engine command).
     ("gis-kit", "GIS_KIT_CMD"),
     ("gis-composer", "GIS_COMPOSER_CMD"),
+    ("gis-view", "GIS_VIEW_CMD"),
 )
 # Codex entry files: (line prefix in the source SKILL.md, replacement); {repo} is the source repository.
 # The prefix stops before the punctuation that follows `$R`, so rewording the rest of the sentence does not break it.
@@ -27,6 +28,10 @@ ENTRY_LINES = {
     "gis-composer": (
         "本 skill 的目录即 gis-composer 运行时仓库，下文记为 `$R`",
         "gis-composer 运行时仓库在 `{repo}`，下文记为 `$R`（本 skill 目录只是 Codex 入口，不含运行时）",
+    ),
+    "gis-view": (
+        "`GV` 为本 skill 的实际目录（即 gis-view 仓库）",
+        "`GV` 为 gis-view 仓库 `{repo}`（本 skill 目录只是 Codex 入口，不含运行时）",
     ),
 }
 TIMEOUT_SECONDS = 120
