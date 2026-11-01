@@ -79,6 +79,89 @@ class MapStyleSchema(unittest.TestCase):
         self.assertValid(doc(geometry="point", renderer={"type": "single", "symbol": {
             "marker": {"shape": "arrow", "size": 8, "rotation": 90}, "fill": {"color": "#000000"}}}))
 
+    def test_markers_patterns_and_weights(self):
+        svg = {"path": "assets/icons/a.svg", "sha256": "0" * 64}
+        line = lambda marker: doc(geometry="line", renderer={"type": "single", "symbol": {
+            "stroke": {"color": "#000000", "width": 1}, "marker": marker}})
+        point = lambda marker: doc(geometry="point", renderer={"type": "single", "symbol": {"marker": marker}})
+        hatch = lambda pattern: doc(renderer={"type": "single", "symbol": {"fill": {"color": "#FFFFFF", "opacity": 0, "pattern": pattern}}})
+        text = lambda **style: doc(labels={"field": "n", "text": {"size": 12, "color": "#000000", **style}})
+        for name, sample in {
+            "along line": line({"shape": "chevron", "size": 7, "placement": "line", "spacing": 80, "alongLine": True, "rotation": 90}),
+            "along line, upright": line({"shape": "arrow", "size": 7, "placement": "line", "spacing": 40, "alongLine": False}),
+            "svg": point({"shape": "svg", "size": 12, "svg": svg}),
+            "svg in external root": point({"shape": "svg", "size": 12, "svg": {**svg, "path": "@icons/a.svg"}}),
+            "rotation field": point({"shape": "arrow", "size": 8, "rotation": 90, "rotationField": "angle"}),
+            "hatch": hatch({"kind": "hatch", "angle": 45, "spacing": 6, "width": 0.8, "color": "#333333", "opacity": 0.6}),
+            "cross hatch": hatch({"kind": "crossHatch", "spacing": 4, "width": 0.5, "color": "#333333"}),
+            "padding": text(box={"padding": 2}),
+            "padding vertical, horizontal": text(box={"padding": [3, 6]}),
+            "padding four sides": text(box={"padding": [3, 6, 3, 6]}),
+            "text weight": text(font="GC Sans", weight=500),
+            "text weight string": text(font="GC Sans", weight="700"),
+        }.items():
+            with self.subTest(name):
+                self.assertValid(sample)
+        for name, sample in {
+            "along line without spacing": line({"shape": "chevron", "size": 7, "placement": "line"}),
+            "zero spacing": line({"shape": "chevron", "size": 7, "placement": "line", "spacing": 0}),
+            "unknown placement": line({"shape": "chevron", "size": 7, "placement": "vertex", "spacing": 10}),
+            "alongLine not boolean": line({"shape": "chevron", "size": 7, "placement": "line", "spacing": 10, "alongLine": "yes"}),
+            "svg without image": point({"shape": "svg", "size": 12}),
+            "svg without hash": point({"shape": "svg", "size": 12, "svg": {"path": "assets/icons/a.svg"}}),
+            "svg absolute path": point({"shape": "svg", "size": 12, "svg": {**svg, "path": "/icons/a.svg"}}),
+            "svg climbs out": point({"shape": "svg", "size": 12, "svg": {**svg, "path": "../icons/a.svg"}}),
+            "empty rotation field": point({"shape": "arrow", "size": 8, "rotationField": ""}),
+            "unknown pattern": hatch({"kind": "dots", "spacing": 6, "width": 0.8, "color": "#333333"}),
+            "pattern without spacing": hatch({"kind": "hatch", "width": 0.8, "color": "#333333"}),
+            "pattern zero spacing": hatch({"kind": "hatch", "spacing": 0, "width": 0.8, "color": "#333333"}),
+            "pattern colour with alpha": hatch({"kind": "hatch", "spacing": 6, "width": 0.8, "color": "#33333380"}),
+            "padding three numbers": text(box={"padding": [3, 6, 3]}),
+            "negative padding": text(box={"padding": [3, -1]}),
+            "weight too heavy": text(weight=950),
+            "weight too light": text(weight=50),
+            "weight keyword": text(weight="bold"),
+            "weight with unit": text(weight="500px"),
+        }.items():
+            with self.subTest(name):
+                self.assertInvalid(sample)
+
+    def test_fonts_panels_and_frames(self):
+        sample = doc(panel="inset")
+        sample["fonts"] = [{"family": "GC Sans", "weight": 400}, {"family": "GC Sans", "weight": "500"}]
+        sample["extent"] = {"bbox": [114.0, 22.5, 114.1, 22.6], "print": {"widthCm": 20, "heightCm": 14, "dpi": 300},
+                            "panels": [{"id": "main", "bbox": [114.0, 22.5, 114.1, 22.6],
+                                        "frame": {"x": 0, "y": 0, "width": 20, "height": 14}},
+                                       {"id": "inset", "bbox": [114.0, 22.5, 114.02, 22.52],
+                                        "frame": {"x": 14.5, "y": 0.5, "width": 5, "height": 4}}]}
+        sample["labelPlacements"] = [{"panel": "inset", "text": "x", "position": [114.01, 22.51], "style": {"size": 12, "color": "#000000"}}]
+        self.assertValid(sample)
+        for name, change in {
+            "font weight too heavy": lambda d: d["fonts"][0].update(weight=1000),
+            "font weight keyword": lambda d: d["fonts"][0].update(weight="medium"),
+            "empty placement panel": lambda d: d["labelPlacements"][0].update(panel=""),
+            "frame without height": lambda d: d["extent"]["panels"][1]["frame"].pop("height"),
+            "frame zero width": lambda d: d["extent"]["panels"][1]["frame"].update(width=0),
+            "frame off the page": lambda d: d["extent"]["panels"][1]["frame"].update(x=-1),
+        }.items():
+            with self.subTest(name):
+                broken = copy.deepcopy(sample)
+                change(broken)
+                self.assertInvalid(broken)
+
+    def test_data_kind_and_geometry(self):
+        rgb = {"type": "rgb", "bands": [1, 2, 3]}
+        lines = {"type": "single", "symbol": {"stroke": {"color": "#000000", "width": 1}}}
+        for kind, geometry, renderer in [("raster", "raster", rgb), ("rasterTiles", "raster", rgb),
+                                         ("vector", "point", lines), ("vector", "polygon", lines),
+                                         ("vectorTiles", "line", lines), ("vectorTiles", "polygon", lines)]:
+            with self.subTest(kind=kind, geometry=geometry):
+                self.assertValid(doc(geometry=geometry, data={"path": "@basemap/a", "kind": kind}, renderer=renderer))
+        for kind, geometry, renderer in [("raster", "polygon", lines), ("rasterTiles", "point", lines),
+                                         ("vector", "raster", rgb), ("vectorTiles", "raster", rgb)]:
+            with self.subTest(kind=kind, geometry=geometry):
+                self.assertInvalid(doc(geometry=geometry, data={"path": "@basemap/a", "kind": kind}, renderer=renderer))
+
     def test_unknown_fields_are_allowed(self):
         sample = doc()
         sample["futureField"] = {"x": 1}
