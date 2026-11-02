@@ -1,6 +1,6 @@
 {
   "name": "gis-plugin",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Thin integration shell for the GIS engines (gis-kit, gis-view, gis-composer): cross-engine hooks, file contracts and diagnostics. Each engine ships its own skill.",
   "author": {
     "name": "shio_vinyl"
