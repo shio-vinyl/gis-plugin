@@ -1,0 +1,2 @@
+# Same bytes on every platform: the hooks and contracts are read as LF, whatever core.autocrlf says.
+* text=auto eol=lf

@@ -68,10 +68,20 @@ def engine_settings(environ):
     return settings
 
 
+def split_command(command, windows=os.name == "nt"):
+    """Split like a shell; on Windows a backslash is a path separator, not an escape. Quotes go either way."""
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    if windows:
+        lexer.escape = ""
+    return list(lexer)
+
+
 def source_repo(skill, command):
     """The directory holding `<skill>`'s SKILL.md, found by walking up from the paths in its engine command."""
     try:
-        argv = shlex.split(command)
+        argv = split_command(command)
     except ValueError:
         return None
     for token in argv:
@@ -86,7 +96,7 @@ def source_repo(skill, command):
 
 
 def _git(path, *args):
-    return subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+    return subprocess.run(["git", "-C", str(path), *args], capture_output=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_SECONDS)
 
 
 def update_clone(path, dry_run):
@@ -162,6 +172,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="更新各宿主（CC、Codex、dsh）中安装的 GIS 引擎 skill。")
     parser.add_argument("--dry-run", action="store_true", help="只报告要做什么，不改文件")
     args = parser.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     results = run(os.environ, dry_run=args.dry_run)
     home = os.path.expanduser("~")
     for item in results:

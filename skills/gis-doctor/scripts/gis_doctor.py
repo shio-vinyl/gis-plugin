@@ -125,6 +125,16 @@ def _summary(text):
     return text if len(text) <= STDERR_MAX_CHARS else text[:STDERR_MAX_CHARS] + "…"
 
 
+def split_command(command, windows=os.name == "nt"):
+    """Split like a shell; on Windows a backslash is a path separator, not an escape. Quotes go either way."""
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    if windows:
+        lexer.escape = ""
+    return list(lexer)
+
+
 def check_engine(engine, env_var, min_version, environ):
     result = {"engine": engine, "env": env_var}
     raw = environ.get(env_var, "").strip()
@@ -132,14 +142,15 @@ def check_engine(engine, env_var, min_version, environ):
         result.update(status="not_configured", message=f"未设置 {env_var}（环境变量或 engines.env）")
         return result
     try:
-        argv = shlex.split(raw)
+        argv = split_command(raw)
     except ValueError as exc:
         result.update(status="error", message=f"{env_var} 无法解析：{exc}")
         return result
     try:
         proc = subprocess.run(
             argv + ["capabilities", "--json"],
-            capture_output=True, text=True, timeout=TIMEOUT_SECONDS, stdin=subprocess.DEVNULL,
+            capture_output=True, encoding="utf-8", errors="replace", env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            timeout=TIMEOUT_SECONDS, stdin=subprocess.DEVNULL,
         )
     except FileNotFoundError:
         result.update(status="error", message=f"找不到可执行文件：{argv[0]}")
@@ -219,7 +230,7 @@ def skill_dirs(environ):
 def source_repo(skill, command):
     """The directory holding `<skill>`'s SKILL.md, found by walking up from the paths in its engine command."""
     try:
-        argv = shlex.split(command)
+        argv = split_command(command)
     except ValueError:
         return None
     for token in argv:
@@ -398,6 +409,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="检查 GIS 引擎是否可用、版本是否兼容。")
     parser.add_argument("--json", action="store_true", help="输出 JSON 报告")
     args = parser.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     report = run(os.environ)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -126,6 +127,51 @@ class ProtectSources(unittest.TestCase):
         self.assertEqual(hook._ignores_case(registry), insensitive)
         self.assertEqual(self.denied("Write", {"file_path": str(self.data / "RAW" / "A.CSV")}), insensitive)
 
+    def test_powershell_writes(self):
+        for command in [
+            r"Set-Content raw\a.csv x",
+            r"set-content -Path raw\a.csv -Value x",
+            r"Set-Content -Path:raw\a.csv -Value x",
+            r"Add-Content raw\a.csv 'x'",
+            r"Clear-Content raw\a.csv",
+            r"'x' | Out-File raw\a.csv",
+            r"'x' | Out-File -FilePath raw\a.csv -Encoding utf8",
+            r"'x' | Tee-Object raw\a.csv",
+            r"Export-Csv -Path raw\a.csv -InputObject $x",
+            r"New-Item raw\a.csv",
+            r"Remove-Item raw\a.csv",
+            r"Remove-Item -Recurse raw",
+            r"ri raw\a.csv",
+            r"del raw\a.csv",
+            r"rm raw\a.csv",
+            r"Move-Item raw\a.csv out.csv",
+            r"Move-Item b.csv raw\a.csv",
+            r"Rename-Item raw\a.csv b.csv",
+            r"Copy-Item b.csv raw\a.csv",
+            r"Copy-Item -Destination raw\a.csv b.csv",
+            r"Copy-Item -Path b.csv -Dest:raw\a.csv",
+            r"cp b.csv raw\a.csv",
+            r"'x' > raw\a.csv",
+            r"'x' >> raw\a.csv",
+            r"Get-Date; Set-Content 'raw\b c.csv' x",
+        ]:
+            for tool in ("pwsh", "PowerShell"):
+                with self.subTest(tool=tool, command=command):
+                    self.assertTrue(self.denied(tool, {"command": command}))
+
+    def test_powershell_reads_allowed(self):
+        for command in [
+            r"Get-Content raw\a.csv",
+            r"Get-Content raw\a.csv | Set-Content out.csv",
+            r"Copy-Item raw\a.csv out.csv",
+            r"Copy-Item -Path raw\a.csv -Destination out.csv",
+            r"cp raw\a.csv out.csv",
+            r"Get-Content raw\a.csv > out.csv",
+            r"Set-Content out.csv x",
+        ]:
+            with self.subTest(command=command):
+                self.assertFalse(self.denied("pwsh", {"command": command}))
+
     def test_invalid_registry_fails_closed_in_its_tree_only(self):
         (self.data / ".gis" / "sources.json").write_text("{", encoding="utf-8")
         self.assertTrue(self.denied("Write", {"file_path": str(self.data / "anything.csv")}))
@@ -151,6 +197,14 @@ class ProtectSources(unittest.TestCase):
         broken = run("not json")
         self.assertEqual((broken.returncode, broken.stdout), (0, ""))
         self.assertIn("protect_sources", broken.stderr)
+
+    def test_stdin_is_utf8_whatever_the_console_uses(self):
+        self.register(["原始/**"])
+        payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "原始/a.csv"}, "cwd": str(self.data)}, ensure_ascii=False)
+        for raw in (payload.encode("utf-8"), b"\xef\xbb\xbf" + payload.encode("utf-8")):
+            result = subprocess.run([sys.executable, str(SCRIPT)], input=raw, capture_output=True,
+                                    env={**os.environ, "PYTHONIOENCODING": "gbk"})
+            self.assertEqual(json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"], "deny", result.stderr)
 
 
 if __name__ == "__main__":

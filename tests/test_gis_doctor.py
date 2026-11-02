@@ -19,6 +19,10 @@ spec = importlib.util.spec_from_file_location("gis_doctor", SCRIPT)
 doctor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(doctor)
 
+updater_spec = importlib.util.spec_from_file_location("update_engine_skills", ROOT / "scripts" / "update_engine_skills.py")
+updater = importlib.util.module_from_spec(updater_spec)
+updater_spec.loader.exec_module(updater)
+
 
 def caps(**overrides):
     doc = {
@@ -257,6 +261,15 @@ class ValidatorMatchesSchema(unittest.TestCase):
         for sample in self.SAMPLES:
             with self.subTest(sample=sample):
                 self.assertEqual(validator.is_valid(sample), not doctor.validate_capabilities(sample))
+
+
+class WindowsCommands(unittest.TestCase):
+    def test_backslashes_survive_on_windows(self):
+        for module in (doctor, updater):
+            with self.subTest(module=module.__name__):
+                self.assertEqual(module.split_command(r"node C:\repo\src\entry.js", windows=True), ["node", r"C:\repo\src\entry.js"])
+                self.assertEqual(module.split_command(r'"C:\Program Files\py.exe" x', windows=True), [r"C:\Program Files\py.exe", "x"])
+                self.assertEqual(module.split_command(r"node 'a b.js'", windows=False), ["node", "a b.js"])
 
 
 class DshHooks(unittest.TestCase):

@@ -20,6 +20,7 @@ SCHEMA_VERSION = 1
 
 FILE_TOOLS = {"write": "file_path", "edit": "file_path", "multiedit": "file_path", "notebookedit": "notebook_path"}
 SHELL_TOOLS = {"bash"}
+POWERSHELL_TOOLS = {"powershell", "pwsh"}
 PATCH_TOOLS = {"apply_patch"}
 
 # A write to a sidecar counts as a write to the dataset it belongs to.
@@ -35,6 +36,14 @@ WRITERS = {
     "shred": "all", "gdal_edit.py": "all", "gdal_edit": "all",
     "cp": "last", "gdal_translate": "last", "gdalwarp": "last", "rsync": "last", "install": "last",
     "ogr2ogr": "first", "gdaladdo": "first",
+}
+# PowerShell cmdlets and aliases, lowercase; "copy" writes only to its destination.
+POWERSHELL_WRITERS = {
+    "set-content": "all", "sc": "all", "add-content": "all", "ac": "all", "clear-content": "all", "clc": "all",
+    "out-file": "all", "tee-object": "all", "export-csv": "all", "new-item": "all", "ni": "all",
+    "remove-item": "all", "ri": "all", "del": "all", "erase": "all", "rd": "all", "rmdir": "all",
+    "move-item": "all", "mi": "all", "move": "all", "rename-item": "all", "rni": "all", "ren": "all",
+    "copy-item": "copy", "cpi": "copy", "copy": "copy", "cp": "copy",
 }
 
 
@@ -105,10 +114,22 @@ def check_target(target, cache):
     return None
 
 
-def _shell_targets(command):
+def _copy_destination(words):
+    """PowerShell copy: the -Destination value (any unambiguous abbreviation, `-Dest x` or `-Dest:x`), or the last argument."""
+    for i, word in enumerate(words[1:], 1):
+        key, colon, value = word.partition(":")
+        if len(key) > 3 and "-destination".startswith(key.lower()):
+            return value if colon else (words[i + 1] if i + 1 < len(words) else None)
+    positional = [w for w in words[1:] if not w.startswith("-")]
+    return positional[-1] if positional else None
+
+
+def _shell_targets(command, powershell=False):
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
     lexer.whitespace_split = True
     lexer.commenters = ""
+    if powershell or os.name == "nt":
+        lexer.escape = ""  # a backslash here separates path parts
     try:
         tokens = list(lexer)
     except ValueError:
@@ -123,15 +144,21 @@ def _shell_targets(command):
             words.pop(0)
             name = os.path.basename(words[0])
         args = [w for w in words[1:] if not w.startswith("-")]
-        if name == "sed" and any(w == "-i" or w.startswith("-i") or w == "--in-place" for w in words[1:]):
+        how = WRITERS.get(name)
+        if powershell:
+            how = POWERSHELL_WRITERS.get(name.lower(), WRITERS.get(name.lower()))
+            args += [w.partition(":")[2] for w in words[1:] if w.startswith("-") and w.partition(":")[2]]  # -Path:x
+        if how == "copy":
+            targets.append(_copy_destination(words))
+        elif name == "sed" and any(w == "-i" or w.startswith("-i") or w == "--in-place" for w in words[1:]):
             targets.extend(args[1:])
         elif name == "dd":
             targets.extend(w[3:] for w in words[1:] if w.startswith("of="))
-        elif WRITERS.get(name) == "all":
+        elif how == "all":
             targets.extend(args)
-        elif WRITERS.get(name) == "last" and args:
+        elif how == "last" and args:
             targets.append(args[-1])
-        elif WRITERS.get(name) == "first" and args:
+        elif how == "first" and args:
             targets.append(args[0])
         words.clear()
 
@@ -146,7 +173,8 @@ def _shell_targets(command):
         else:
             words.append(token)
     flush()
-    return [t for t in targets if t and t != "/dev/null" and not t.startswith("&")]
+    found = [t for t in targets if t and t != "/dev/null" and not t.startswith("&")]
+    return [t.replace("\\", "/") for t in found] if powershell else found
 
 
 def write_targets(payload):
@@ -157,8 +185,8 @@ def write_targets(payload):
         return [value] if isinstance(value, str) else []
     if tool in PATCH_TOOLS:
         return PATCH_LINE.findall(str(tool_input.get("command") or tool_input.get("patch") or ""))
-    if tool in SHELL_TOOLS:
-        return _shell_targets(str(tool_input.get("command", "")))
+    if tool in SHELL_TOOLS or tool in POWERSHELL_TOOLS:
+        return _shell_targets(str(tool_input.get("command", "")), tool in POWERSHELL_TOOLS)
     return []
 
 
@@ -177,7 +205,7 @@ def decide(payload):
 
 def main():
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")  # never the Windows code page
         reasons = decide(payload)
     except Exception as exc:  # a broken hook must not block unrelated work
         print(f"gis-plugin protect_sources: {exc}", file=sys.stderr)

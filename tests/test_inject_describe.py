@@ -104,6 +104,19 @@ class InjectDescribe(unittest.TestCase):
         self.assertFalse(home.exists())
         self.assertEqual([p.name for p in (self.tmp / "state" / "describe-seen").iterdir()], ["s1.json"])
 
+    def test_engine_command_and_output_encoding(self):
+        self.assertEqual(hook.split_command(r"node C:\tools\entry.js", windows=True), ["node", r"C:\tools\entry.js"])
+        self.assertEqual(hook.split_command(r'"C:\Program Files\py.exe" "C:\a b\gis.py"', windows=True),
+                         [r"C:\Program Files\py.exe", r"C:\a b\gis.py"])
+        self.assertEqual(hook.split_command(r"node a\ b.js", windows=False), ["node", "a b.js"])
+        seen = {}
+        def fake_run(argv, **kwargs):
+            seen.update(kwargs)
+            return subprocess.CompletedProcess(argv, 1, "", "boom")
+        with mock.patch.object(hook.subprocess, "run", fake_run):
+            hook.describe(["kit"], self.data / "dem.tif")
+        self.assertEqual((seen["encoding"], seen["env"]["PYTHONIOENCODING"]), ("utf-8", "utf-8"))
+
     def test_limits_failures_and_missing_engine(self):
         for i in range(5):
             (self.data / f"l{i}.gpkg").write_text("x", encoding="utf-8")
@@ -175,6 +188,9 @@ class InjectDescribe(unittest.TestCase):
         self.assertIn("[gis-kit describe]", out["additionalContext"])
         self.assertTrue(out["additionalContext"].startswith(hook.SOURCE_LINE))
         self.assertTrue(result.stdout.isascii())
+        gbk = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(self.prompt("data/地类图斑.gpkg", "s8"), ensure_ascii=False).encode("utf-8"),
+                             capture_output=True, env={**os.environ, **self.env, "PYTHONIOENCODING": "gbk"})
+        self.assertIn("地类图斑", json.loads(gbk.stdout)["hookSpecificOutput"]["additionalContext"])
         broken = run("not json")
         self.assertEqual((broken.returncode, broken.stdout), (0, ""))
 
