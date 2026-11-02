@@ -37,7 +37,7 @@ doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`
 
 ## dsh 的 hook 桥接
 
-对 `cordis.patch.yml` 里挂了 `@deepseek-ai/dsh-hooks-claude-code` 的 dsh profile（`DSH_HOME` 生效），doctor 检查这个包是否装了、版本是否等于 App 版本：
+对 `cordis.patch.yml` 里挂了 `@deepseek-ai/dsh-hooks-claude-code` 的 dsh profile（`DSH_HOME` 生效），doctor 检查这个包和它的 peer `@deepseek-ai/dsh-hook-protocol` 是否装了、版本是否等于 App 版本：
 
 - 没装或版本不同时报告，hook 不会运行或可能不会运行。不影响退出码。
 - App 版本读 macOS 的 `Info.plist`，其它平台报“未对比”。

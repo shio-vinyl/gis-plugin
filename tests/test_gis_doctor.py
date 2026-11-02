@@ -314,10 +314,12 @@ class DshHooks(unittest.TestCase):
             self.install(path, bridge)
         return path
 
-    def install(self, base, version):
-        package = base / "node_modules" / doctor.BRIDGE
-        package.mkdir(parents=True)
-        (package / "package.json").write_text(json.dumps({"version": version}), encoding="utf-8")
+    def install(self, base, version, protocol=None, packages=(doctor.BRIDGE, doctor.BRIDGE_PROTOCOL)):
+        for name in packages:
+            package = base / "node_modules" / name
+            package.mkdir(parents=True)
+            wanted = protocol if protocol and name == doctor.BRIDGE_PROTOCOL else version
+            (package / "package.json").write_text(json.dumps({"version": wanted}), encoding="utf-8")
 
     def check(self, **environ):
         return doctor.check_dsh_hooks({"HOME": str(self.home), **environ})
@@ -333,6 +335,19 @@ class DshHooks(unittest.TestCase):
         [item] = self.check()
         self.assertEqual((item["profile"], item["status"], item["bridge"]), ("desktop", "warn", None))
         self.assertIn("hook 不会运行", item["message"])
+
+    def test_bridge_without_protocol_peer(self):
+        self.install(self.profile("desktop"), "0.2.1-rc.3", packages=(doctor.BRIDGE,))
+        [item] = self.check()
+        self.assertEqual((item["status"], item["bridge"], item["protocol"]), ("warn", "0.2.1-rc.3", None))
+        self.assertIn(doctor.BRIDGE_PROTOCOL, item["message"])
+        self.assertIn("hook 不会运行", item["message"])
+
+    def test_protocol_version_against_app(self):
+        self.install(self.profile("desktop"), "0.2.1-rc.3", protocol="0.2.1-rc.2")
+        [item] = self.check()
+        self.assertEqual((item["status"], item["protocol"]), ("warn", "0.2.1-rc.2"))
+        self.assertIn("0.2.1-rc.2", item["message"])
 
     def test_version_against_app(self):
         self.profile("same", bridge="0.2.1-rc.3")

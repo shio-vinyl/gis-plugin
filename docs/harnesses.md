@@ -124,15 +124,18 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
         pluginRoot: <repo>
 ```
 
-App 0.2.1 起只写补丁不够：桥接不再随 App 打包，包不在 profile 里时启动报 `ERR_MODULE_NOT_FOUND`，hook 不运行，受保护文件照样能写。要把桥接装进 profile（以下示例须用户授权执行，`dsh` 指 App 自带的，运行方式见 §5）：
+App 0.2.1 起只写补丁不够：桥接不再随 App 打包，包不在 profile 里时启动报 `ERR_MODULE_NOT_FOUND`，hook 不运行，受保护文件照样能写。要把桥接和 App 同样缺少的 peer `dsh-hook-protocol` 一起装进 profile（以下示例须用户授权执行，`dsh` 是 App 内的 `Contents/Resources/runtime/cli/bin/dsh`）：
 
 ```bash
-dsh plugin --profile <profile> add -w --save-exact @deepseek-ai/dsh-hooks-claude-code@<App 版本>
+dsh plugin --profile <profile> add -w --save-exact @deepseek-ai/dsh-hooks-claude-code@<App 版本> @deepseek-ai/dsh-hook-protocol@<App 版本>
 ```
 
-- 版本必须等于 `dsh --version`，`latest`、`next` 都不能用。桥接的 peer 依赖锁定同版本，由 pnpm 一起安装（试装时共 34 个包、21 MB）。
-- 要加 `-w`：profile 目录自身是 pnpm workspace 根，不加会报 `ERR_PNPM_ADDING_TO_ROOT`。安装时提示 `declares no dsh.bundle` 不影响挂载。
-- App 升级后要按新版本重装。`gis-doctor` 会检查包是否装了、版本是否等于 App 版本；它是静态检查，要确认 hook 真在运行，还得写一次受保护文件。
+- 版本必须等于 `dsh --version`，`latest`、`next` 都不能用。
+- 两个包都要写：profile 模板设了 `autoInstallPeers: false`，只写桥接时启动报找不到 `dsh-hook-protocol`。其它 peer 由 App 内置包解析，`pnpm peers check` 报它们缺失、退出码非 0 都不影响运行。装完不到 1 MB。
+- 加 `-w`：有的安装不加会报 `ERR_PNPM_ADDING_TO_ROOT`，加了都能装。提示 `declares no dsh.bundle` 不影响挂载。
+- **profile 有按分支 URL 声明的依赖时不要直接跑这条命令。** `pnpm add` 会顺带重新解析这些依赖。`desktop` 按 master tarball 声明 dsh-purge，在它的副本上实测从 1.1.66 升到 1.1.90，且以 `ERR_PNPM_IGNORED_BUILDS` 退出、postinstall 未运行。这种 profile 可以先在别的 profile 装好并验证，再把 `node_modules/@deepseek-ai` 和 `node_modules/@standard-schema` 复制过去，不动 `package.json` 和 lock；删掉这两个目录即回退。之后在该 profile 上跑 pnpm 可能清掉它们，`gis-doctor` 会报告。
+- App 升级后要按新版本重装。`gis-doctor` 会检查这两个包是否装了、版本是否等于 App 版本；它是静态检查，要确认 hook 真在运行，还得写一次受保护文件。`desktop` 由 App 独占，CLI 启动时报 `managed exclusively by the Electron application`，只能在 App 里验证。
+- `--from-default-profile headless` 建的 profile 要跑真实回合，又不想配环境变量时，按 dsh-headless 的说明在 overlay 里恢复 `credentials`、`authorization`、`deepseek-account` 三项（`disabled: false`）。
 
 桥接一个实例只读一个 `configPath`。已有自己的 CC hooks 时不必合并文件，在同一个 `insert` 下再挂一个实例（另起 `id`，`configPath` 指向自己的 `settings.json` 或 `hooks.json`）即可，两份互不影响。
 
@@ -155,6 +158,11 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
 - dsh App 0.2.1-rc.3（2026-11-02，[#27](https://github.com/shioo-gis/gis-plugin/issues/27)、[#28](https://github.com/shioo-gis/gis-plugin/issues/28)）：macOS 和 Windows 上桥接包都解析失败。macOS 的 `desktop` profile 真实回合中，写入和删除受保护文件全部成功，启动报 `ERR_MODULE_NOT_FOUND`。
 - 桥接试装（2026-11-02，隔离 profile，已回滚）：按 §4 安装后启动不再报模块错误；加载已装的桥接模块、用模拟事件离线运行，`edit`、`write`、`bash` 重定向、`rm` 都 deny，`PostToolUse` 和 `UserPromptSubmit` 都有卡片。profile 里的副本没有 dsh-purge 的补丁痕迹。profile 和 App 内置包形成两套模块，这次能加载，单例是否一致未验证。真实模型回合未跑：`headless` 模板禁用了 `credentials` 插件，启动报 `MISSING_CREDENTIAL`。
 - 大小写绕过（2026-11-02，[#26](https://github.com/shioo-gis/gis-plugin/issues/26)）：Codex 真实回合中，`apply_patch`、重定向、`rm`、`cp`、`mv` 写 `RAW/...` 都未被拦截，文件实际改变。现已修复并有离线测试，尚未回到宿主真实回合复测。
+- dsh 0.2.1-rc.3 真实模型回合（2026-11-02，macOS）：
+  - 隔离 profile（headless 模板，无 dsh-purge，恢复 `credentials`）：`write` 写 `RAW/A.CSV`、`raw/a.csv`，`edit` 改 `raw/a.csv`，`bash` 执行 `rm RAW/A.CSV`、`rm raw/a.csv`、`printf z > raw/a.csv`，全部收到 hook 的拒绝，文件哈希不变；`write` 和 `bash` 写未登记的 `out/` 成功。`UserPromptSubmit` 和 `PostToolUse` 的卡片都到了模型，它不调用读取工具就答出字段、要素数和 CRS，并注明来自 hook。
+  - `desktop`（App 内，带 dsh-purge 1.1.66，`hooksDenyBypass: false`）：`write` 写 `RAW/A.CSV`、`bash` 执行 `rm raw/a.csv` 都被拒绝，文件哈希不变；`write` 写 `out/ok.txt` 成功。这里没测注入。
+  - 模块：这次只装了桥接和 `dsh-hook-protocol`，其它 peer 用 App 内置的，没有形成两套。上面试装记录的 34 个包没能复现，原因不明。
+  - dsh-purge：它按 `dsh-agent-instructions` 所在目录找补丁目标，这样装的 profile 不符合，所以桥接副本不在它的修改范围内；回合前后 `desktop` 的桥接和 dsh-purge 文件哈希不变。
 
 - hook 命令跨 shell（2026-11-02，macOS，PowerShell 7.6.9 便携版；Windows 未测）：
   - 按 `dsh-pwsh-local` 的参数运行旧写法：`ParserError`，退出码 1，stdout 为空。这证实了读代码的结论，但只在 pwsh 7 上，不是 5.1。
@@ -166,7 +174,7 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
 
 ## 6. 待实测
 
-- dsh 0.2.1 真实模型回合：deny、两种注入，以及模型是否采信卡片。
+- `desktop` 上的两种注入。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
 - 大小写判定在 Windows 和真实宿主回合中的表现。
 - Windows：`hooks.json` 新写法在 dsh（pwsh 7 和 5.1）的真实回合中是否 deny，包括路径带中文和空格；5.1 下 `exec` 报错后是否继续、中文 stdin 是否原样到达（dsh 文档说 5.1 的非 ASCII stdin 可能解码错误；pwsh 7 上不写 `$input` 时原样到达）、长 JSON 是否折行。

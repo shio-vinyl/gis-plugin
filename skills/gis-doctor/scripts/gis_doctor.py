@@ -37,6 +37,7 @@ _UPDATER = Path(__file__).resolve().parents[3] / "scripts" / "update_engine_skil
 UPDATE_SCRIPT = str(_UPDATER) if _UPDATER.is_file() else "<gis-plugin>/scripts/update_engine_skills.py"
 APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
 BRIDGE = "@deepseek-ai/dsh-hooks-claude-code"
+BRIDGE_PROTOCOL = "@deepseek-ai/dsh-hook-protocol"
 BRIDGE_LINE = re.compile(r"^\s*(?:-\s*)?name:\s*['\"]?" + re.escape(BRIDGE) + r"['\"]?\s*(?:#.*)?$", re.M)
 HOOKS_FILE = Path(__file__).resolve().parents[3] / "hooks" / "hooks.json"
 POWERSHELL_ARGS = ("-NoLogo", "-NoProfile", "-NonInteractive", "-Command")
@@ -319,11 +320,11 @@ def dsh_app_version():
     return None
 
 
-def _bridge_version(profile):
-    """The version of the bridge a profile resolves: its own node_modules, then the one shared under profiles/."""
+def _package_version(profile, package):
+    """The version of a package a profile resolves: its own node_modules, then the one shared under profiles/."""
     for base in (profile, profile.parent):
         try:
-            manifest = json.loads((base / "node_modules" / BRIDGE / "package.json").read_text(encoding="utf-8"))
+            manifest = json.loads((base / "node_modules" / package / "package.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         return str(manifest.get("version"))
@@ -331,7 +332,7 @@ def _bridge_version(profile):
 
 
 def check_dsh_hooks(environ):
-    """Profiles attaching the hook bridge: is the package there, at the App's version?
+    """Profiles attaching the hook bridge: are it and the peer the App lacks there, at the App's version?
 
     Static only. A bad result proves the hooks cannot run; a good one does not prove they ran."""
     home = Path(environ.get("HOME") or os.path.expanduser("~"))
@@ -343,14 +344,17 @@ def check_dsh_hooks(environ):
             continue
         if not attached:
             continue
-        version = _bridge_version(patch.parent)
-        result = {"harness": "dsh", "profile": patch.parent.name, "bridge": version, "app": app}
+        version = _package_version(patch.parent, BRIDGE)
+        protocol = _package_version(patch.parent, BRIDGE_PROTOCOL)
+        result = {"harness": "dsh", "profile": patch.parent.name, "bridge": version, "protocol": protocol, "app": app}
         if version is None:
             result.update(status="warn", message=f"cordis.patch.yml 挂了 {BRIDGE}，但没装这个包，这个 profile 的 hook 不会运行")
+        elif protocol is None:
+            result.update(status="warn", message=f"桥接 {version} 已装，但缺 peer {BRIDGE_PROTOCOL}，启动时加载失败，这个 profile 的 hook 不会运行")
         elif app is None:
             result.update(status="unknown", message=f"桥接 {version} 已装；找不到 App 版本，未对比")
-        elif version != app:
-            result.update(status="warn", message=f"桥接 {version} 与 App {app} 版本不同；桥接的 peer 依赖锁定同版本，hook 可能不会运行")
+        elif version != app or protocol != app:
+            result.update(status="warn", message=f"桥接 {version}、{BRIDGE_PROTOCOL} {protocol} 与 App {app} 版本不同；桥接的 peer 依赖锁定同版本，hook 可能不会运行")
         else:
             result.update(status="ok", message=f"桥接 {version}，与 App 版本一致（只查了包和版本，不代表 hook 已运行）")
         results.append(result)
