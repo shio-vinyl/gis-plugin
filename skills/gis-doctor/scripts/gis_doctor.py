@@ -48,7 +48,7 @@ def engine_settings(environ):
                 key, sep, value = line.strip().partition("=")
                 key, value = key.strip(), value.strip()
                 if sep and key.startswith("GIS_"):
-                    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'" and value[0] not in value[1:-1]:
                         value = value[1:-1]
                     settings[key] = value
     except OSError:

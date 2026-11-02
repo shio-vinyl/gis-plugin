@@ -64,7 +64,9 @@ python3 scripts/update_engine_skills.py
 
 脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。要不要更新，先看 `gis-doctor`：它把各宿主里的副本与源仓库逐文件比对，落后时列出缺少或不同的文件。
 
-引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。Windows 上命令里的反斜杠按路径分隔符处理，`C:\tools\gis.py` 不用改写；路径带空格时加引号。
+引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。Windows 上命令里的反斜杠按路径分隔符处理，`C:\tools\gis.py` 不用改写。
+
+值按命令行拆分，所以路径带空格时只给这个路径加引号，比如 `GIS_KIT_CMD=python "C:\my tools\gis.py"`，或者每段都加引号。不要把整条命令放进一对引号再让里面的路径带空格：`GIS_KIT_CMD="python C:\my tools\gis.py"` 拆不出这个路径。
 
 **Windows 上的 hook 解释器：** `hooks.json` 的 `${GIS_PLUGIN_PYTHON:-python3}` 是 POSIX shell 语法，而 Windows 的 `python3` 常常只是应用商店占位程序。宿主如果不经 POSIX shell 运行 hook，这个写法不会展开，设了 `GIS_PLUGIN_PYTHON` 也没用。dsh 桥接在 Windows 上用什么 shell 运行 hook 还没有实测（见 §6），在此之前不要假定 Windows 上的 hook 在运行，先写一次受保护文件确认。
 

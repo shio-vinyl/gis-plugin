@@ -23,6 +23,11 @@ updater_spec = importlib.util.spec_from_file_location("update_engine_skills", RO
 updater = importlib.util.module_from_spec(updater_spec)
 updater_spec.loader.exec_module(updater)
 
+sys.path.insert(0, str(ROOT / "hooks" / "scripts"))  # the hook imports its shared `_patterns` module
+hook_spec = importlib.util.spec_from_file_location("inject_describe", ROOT / "hooks" / "scripts" / "inject_describe.py")
+describe_hook = importlib.util.module_from_spec(hook_spec)
+hook_spec.loader.exec_module(describe_hook)
+
 
 def caps(**overrides):
     doc = {
@@ -261,6 +266,24 @@ class ValidatorMatchesSchema(unittest.TestCase):
         for sample in self.SAMPLES:
             with self.subTest(sample=sample):
                 self.assertEqual(validator.is_valid(sample), not doctor.validate_capabilities(sample))
+
+
+class EnginesFile(unittest.TestCase):
+    def test_outer_quotes_go_only_when_they_wrap_the_whole_value(self):
+        with tempfile.TemporaryDirectory(prefix="gis-plugin-test-") as tmp:
+            path = Path(tmp) / "engines.env"
+            for raw, expected in [
+                ('"/a b/python" "/c d/gis.py"', ["/a b/python", "/c d/gis.py"]),
+                ("'/a b/python' '/c d/gis.py'", ["/a b/python", "/c d/gis.py"]),
+                ('python "/c d/gis.py"', ["python", "/c d/gis.py"]),
+                ('"python /c/gis.py"', ["python", "/c/gis.py"]),
+                ("python /c/gis.py", ["python", "/c/gis.py"]),
+            ]:
+                path.write_text(f"GIS_KIT_CMD={raw}\n", encoding="utf-8")
+                for module in (doctor, updater, describe_hook):
+                    with self.subTest(raw=raw, module=module.__name__):
+                        value = module.engine_settings({"GIS_PLUGIN_CONFIG": str(path)})["GIS_KIT_CMD"]
+                        self.assertEqual(module.split_command(value, windows=False), expected)
 
 
 class WindowsCommands(unittest.TestCase):
