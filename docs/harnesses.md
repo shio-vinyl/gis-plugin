@@ -1,6 +1,6 @@
 # 多宿主适配
 
-外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh CLI 0.1.5-rc.1；之后 dsh 只用 App 0.2.0-rc.2）核对的差异，宿主升级后需复核。
+外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh CLI 0.1.5-rc.1；之后 dsh 只用 App 0.2.0-rc.2）核对的差异，宿主升级后需复核。dsh 的 hooks 部分已于 2026-11-02 按 App 0.2.1-rc.3 复核。
 
 ## 1. 差异
 
@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 插件清单 | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json`（`skills`、`hooks`、`mcpServers`、`interface`） | 无统一清单；profile 为 npm 包 + `cordis.patch.yml` 补丁层 |
 | skills | `skills/<name>/SKILL.md` | 同格式 | 同格式；由 agent preset 扫描 `<dshHome>/skills`、`.agents/skills` 等 |
-| hooks | 默认 `hooks/hooks.json` | 清单 `hooks` 字段指向的文件，可与 CC 共用；新 hook 须经用户信任才运行 | 经 `dsh-hooks-claude-code` 桥接运行 CC 格式 |
+| hooks | 默认 `hooks/hooks.json` | 清单 `hooks` 字段指向的文件，可与 CC 共用；新 hook 须经用户信任才运行 | 经 `dsh-hooks-claude-code` 桥接运行 CC 格式；App 0.2.1 起桥接不随 App 打包，须装进 profile，版本与 App 相同 |
 | `CLAUDE_PLUGIN_ROOT` | 命令中替换并导出 | 由 Codex 设置并导出 | 桥接按 `pluginRoot` 在命令中替换，不导出 |
 | MCP | `.mcp.json` | `.mcp.json` | `dsh-mcp-client`，每个 server 一项 |
 | 用户配置 | `userConfig`（值只传给 hook 进程与 skill 文本，不进 Bash 工具环境） | 无对应字段 | profile YAML |
@@ -74,7 +74,7 @@ claude plugin update gis-plugin@gis-plugin
 codex plugin add gis-plugin@gis-plugin
 ```
 
-dsh 的软链与桥接直接指向本仓库，无需更新。
+dsh 的 skill 软链与桥接配置直接指向本仓库，本仓库更新后无需更新；App 升级后要重装同版本桥接，见下。
 
 dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patch` 叠加）：
 
@@ -86,6 +86,16 @@ dsh 的 hooks 补丁（追加到 profile 的 `cordis.patch.yml`，或用 `--patc
         configPath: <repo>/hooks/hooks.json
         pluginRoot: <repo>
 ```
+
+App 0.2.1 起只写补丁不够：桥接不再随 App 打包，包不在 profile 里时启动报 `ERR_MODULE_NOT_FOUND`，hook 不运行，受保护文件照样能写。要把桥接装进 profile（以下示例须用户授权执行，`dsh` 指 App 自带的，运行方式见 §5）：
+
+```bash
+dsh plugin --profile <profile> add -w --save-exact @deepseek-ai/dsh-hooks-claude-code@<App 版本>
+```
+
+- 版本必须等于 `dsh --version`，`latest`、`next` 都不能用。桥接的 peer 依赖锁定同版本，由 pnpm 一起安装（试装时共 34 个包、21 MB）。
+- 要加 `-w`：profile 目录自身是 pnpm workspace 根，不加会报 `ERR_PNPM_ADDING_TO_ROOT`。安装时提示 `declares no dsh.bundle` 不影响挂载。
+- App 升级后要按新版本重装。`gis-doctor` 会检查包是否装了、版本是否等于 App 版本；它是静态检查，要确认 hook 真在运行，还得写一次受保护文件。
 
 桥接一个实例只读一个 `configPath`。已有自己的 CC hooks 时不必合并文件，在同一个 `insert` 下再挂一个实例（另起 `id`，`configPath` 指向自己的 `settings.json` 或 `hooks.json`）即可，两份互不影响。
 
@@ -105,7 +115,12 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - 观察：`PostToolUse` 卡片出现在工具结果之后，DeepSeek 模型一次把它当作“非自己工具产生的未验证内容”，只转述、不采信。之后在卡片前加一行事实性来源说明（gis-plugin hook 实际运行 `gis-kit describe --json` 所得），同一场景复测 3 次均直接采信并注明出处。
 - Codex `PostToolUse` 注入（2026-10-10，CLI 0.160.0）：在隔离 `CODEX_HOME` 中装当前版本，hook 信任沿用用户已有的 `hooks.state` 记录（`hooks.json` 未变，哈希一致），`codex exec -s read-only` 跑 3 次。提示不含完整路径、仅 shell 命令带上路径，3 次都在 `PostToolUse` 收到卡片，模型不再调用工具即答出字段、EPSG:4326 与要素数，并注明来自注入的元数据。
 - dsh 两个桥接实例并存（2026-10-10）：一个挂 gis-plugin，一个挂模拟的用户 CC hooks（`UserPromptSubmit` 注入标记、`PreToolUse` 写日志）。用户的注入与 gis-plugin 的拦截同时生效；未被拦截的 `bash` 调用两边都执行，被 gis-plugin deny 的调用不再执行用户的 `PreToolUse`（日志无记录），与“deny 即终止”的语义一致。
+- dsh App 0.2.1-rc.3（2026-11-02，[#27](https://github.com/shioo-gis/gis-plugin/issues/27)、[#28](https://github.com/shioo-gis/gis-plugin/issues/28)）：macOS 和 Windows 上桥接包都解析失败。macOS 的 `desktop` profile 真实回合中，写入和删除受保护文件全部成功，启动报 `ERR_MODULE_NOT_FOUND`。
+- 桥接试装（2026-11-02，隔离 profile，已回滚）：按 §4 安装后启动不再报模块错误；加载已装的桥接模块、用模拟事件离线运行，`edit`、`write`、`bash` 重定向、`rm` 都 deny，`PostToolUse` 和 `UserPromptSubmit` 都有卡片。profile 里的副本没有 dsh-purge 的补丁痕迹。profile 和 App 内置包形成两套模块，这次能加载，单例是否一致未验证。真实模型回合未跑：`headless` 模板禁用了 `credentials` 插件，启动报 `MISSING_CREDENTIAL`。
+- 大小写绕过（2026-11-02，[#26](https://github.com/shioo-gis/gis-plugin/issues/26)）：Codex 真实回合中，`apply_patch`、重定向、`rm`、`cp`、`mv` 写 `RAW/...` 都未被拦截，文件实际改变。现已修复并有离线测试，尚未回到宿主真实回合复测。
 
 ## 6. 待实测
 
-暂无。
+- dsh 0.2.1 真实模型回合：deny、两种注入，以及模型是否采信卡片。
+- App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
+- 大小写判定在 Windows 和真实宿主回合中的表现。

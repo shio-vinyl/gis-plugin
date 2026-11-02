@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "hooks" / "scripts" / "protect_sources.py"
@@ -98,6 +99,33 @@ class ProtectSources(unittest.TestCase):
         self.assertTrue(self.denied("Bash", {"command": "touch parcels.gdb/a0000001.gdbtable"}))
         self.assertFalse(self.denied("Write", {"file_path": str(self.data / "rivers.dbf")}))
 
+    def test_case_follows_the_volume(self):
+        spellings = [
+            ("Write", {"file_path": str(self.data / "RAW" / "A.CSV")}),
+            ("edit", {"file_path": str(self.data / "Raw" / "a.csv")}),
+            ("Bash", {"command": "rm RAW/A.CSV"}),
+            ("Bash", {"command": "echo x > Raw/a.csv"}),
+            ("Bash", {"command": "cp new.csv RAW/A.CSV"}),
+            ("apply_patch", {"command": f"*** Begin Patch\n*** Update File: {self.data}/RAW/A.CSV\n*** End Patch"}),
+            ("Write", {"file_path": str(self.data / "ROADS.DBF")}),
+            ("Write", {"file_path": str(self.data / "DEM" / "SRTM.TIF")}),
+        ]
+        with mock.patch.object(hook, "_ignores_case", return_value=True):
+            for tool, tool_input in spellings:
+                with self.subTest(tool=tool, tool_input=tool_input):
+                    self.assertTrue(self.denied(tool, tool_input))
+            self.assertFalse(self.denied("Write", {"file_path": str(self.data / "RAW2" / "A.CSV")}))
+        with mock.patch.object(hook, "_ignores_case", return_value=False):  # RAW/ and raw/ are two directories here
+            for tool, tool_input in spellings:
+                with self.subTest(tool=tool, tool_input=tool_input):
+                    self.assertFalse(self.denied(tool, tool_input))
+
+    def test_case_probe_matches_this_volume(self):
+        registry = self.data / ".gis" / "sources.json"
+        insensitive = (self.data / ".gis" / "SOURCES.JSON").exists()
+        self.assertEqual(hook._ignores_case(registry), insensitive)
+        self.assertEqual(self.denied("Write", {"file_path": str(self.data / "RAW" / "A.CSV")}), insensitive)
+
     def test_invalid_registry_fails_closed_in_its_tree_only(self):
         (self.data / ".gis" / "sources.json").write_text("{", encoding="utf-8")
         self.assertTrue(self.denied("Write", {"file_path": str(self.data / "anything.csv")}))
@@ -116,6 +144,8 @@ class ProtectSources(unittest.TestCase):
         out = json.loads(result.stdout)["hookSpecificOutput"]
         self.assertEqual(out["permissionDecision"], "deny")
         self.assertIn("raw/**", out["permissionDecisionReason"])
+        self.assertIn("受保护", out["permissionDecisionReason"])
+        self.assertTrue(result.stdout.isascii())
         allowed = run(json.dumps({**payload, "tool_input": {"file_path": str(self.tmp / "ok.csv")}}))
         self.assertEqual((allowed.returncode, allowed.stdout), (0, ""))
         broken = run("not json")

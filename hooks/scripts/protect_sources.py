@@ -55,7 +55,16 @@ def load_registry(path):
     for p in patterns:
         if p.startswith("/") or ".." in Path(p).parts:
             raise RegistryError(f"模式须为相对路径且不含 ..：{p}")
-    return [(p, glob_regex(p.rstrip("/"))) for p in patterns]
+    flags = re.IGNORECASE if _ignores_case(path) else 0
+    return [(p, glob_regex(p.rstrip("/"), flags)) for p in patterns]
+
+
+def _ignores_case(registry):
+    """On a case-insensitive volume RAW/A.CSV is raw/a.csv. The registry exists, so try it under another spelling."""
+    try:
+        return os.path.samefile(registry, registry.with_name(registry.name.upper()))
+    except OSError:
+        return False
 
 
 def _candidates(rel):
@@ -178,7 +187,7 @@ def main():
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": "\n".join(reasons),
-        }}, ensure_ascii=False))
+        }}))  # ASCII escapes: Chinese text survives whatever code page a Windows hook's stdout uses
     return 0
 
 

@@ -3,7 +3,7 @@
 import re
 
 
-def glob_regex(pattern):
+def glob_regex(pattern, flags=0):
     """`*` and `?` stay within one segment, `**` spans segments, `dir/**` also matches `dir`."""
     out, i = [], 0
     while i < len(pattern):
@@ -25,4 +25,4 @@ def glob_regex(pattern):
         else:
             out.append(re.escape(pattern[i]))
             i += 1
-    return re.compile("".join(out) + r"\Z")
+    return re.compile("".join(out) + r"\Z", flags)

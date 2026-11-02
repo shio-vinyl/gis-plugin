@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import plistlib
 import shlex
 import shutil
 import subprocess
@@ -256,6 +257,86 @@ class ValidatorMatchesSchema(unittest.TestCase):
         for sample in self.SAMPLES:
             with self.subTest(sample=sample):
                 self.assertEqual(validator.is_valid(sample), not doctor.validate_capabilities(sample))
+
+
+class DshHooks(unittest.TestCase):
+    PATCH = "- insert:\n    - id: gis-plugin-hooks\n      name: '@deepseek-ai/dsh-hooks-claude-code'\n"
+
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp(prefix="gis-plugin-test-"))
+        self.addCleanup(shutil.rmtree, self.home)
+        self.profiles = self.home / ".dsh" / "profiles"
+        patcher = mock.patch.object(doctor, "dsh_app_version", return_value="0.2.1-rc.3")
+        self.app = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def profile(self, name, patch=PATCH, bridge=None):
+        path = self.profiles / name
+        path.mkdir(parents=True)
+        (path / "cordis.patch.yml").write_text(patch, encoding="utf-8")
+        if bridge:
+            self.install(path, bridge)
+        return path
+
+    def install(self, base, version):
+        package = base / "node_modules" / doctor.BRIDGE
+        package.mkdir(parents=True)
+        (package / "package.json").write_text(json.dumps({"version": version}), encoding="utf-8")
+
+    def check(self, **environ):
+        return doctor.check_dsh_hooks({"HOME": str(self.home), **environ})
+
+    def test_no_dsh_or_no_bridge_is_silent(self):
+        self.assertEqual(self.check(), [])
+        self.profile("web", "- id: other\n  name: '@deepseek-ai/dsh-mcp-client'\n")
+        self.profile("old", "# name: '@deepseek-ai/dsh-hooks-claude-code'\n")
+        self.assertEqual(self.check(), [])
+
+    def test_attached_but_not_installed(self):
+        self.profile("desktop")
+        [item] = self.check()
+        self.assertEqual((item["profile"], item["status"], item["bridge"]), ("desktop", "warn", None))
+        self.assertIn("hook 不会运行", item["message"])
+
+    def test_version_against_app(self):
+        self.profile("same", bridge="0.2.1-rc.3")
+        self.profile("older", bridge="0.2.0-rc.2")
+        same, older = sorted(self.check(), key=lambda item: item["profile"], reverse=True)
+        self.assertEqual(same["status"], "ok")
+        self.assertIn("不代表 hook 已运行", same["message"])
+        self.assertEqual(older["status"], "warn")
+        self.assertIn("0.2.0-rc.2", older["message"])
+        self.app.return_value = None
+        self.assertEqual({item["status"] for item in self.check()}, {"unknown"})
+
+    def test_shared_node_modules_and_dsh_home(self):
+        self.profile("desktop")
+        self.install(self.profiles, "0.2.1-rc.3")
+        self.assertEqual(self.check()[0]["status"], "ok")
+        other = self.home / "elsewhere"
+        (other / "profiles" / "p").mkdir(parents=True)
+        (other / "profiles" / "p" / "cordis.patch.yml").write_text(self.PATCH, encoding="utf-8")
+        self.assertEqual(self.check(DSH_HOME=str(other))[0]["profile"], "p")
+
+    def test_report_text_and_exit_code(self):
+        self.profile("desktop")
+        env = {"HOME": str(self.home), "GIS_PLUGIN_CONFIG": str(self.home / "none.env")}
+        report = doctor.run(env)
+        text = doctor.render_text(report)
+        self.assertIn("dsh hooks（desktop）", text)
+        self.assertIn("docs/harnesses.md §4", text)
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch("sys.stdout"):
+            self.assertEqual(doctor.main([]), 0)
+
+    def test_app_version_from_info_plist(self):
+        mock.patch.stopall()
+        contents =self.home / "DeepSeek Harness.app" / "Contents"
+        contents.mkdir(parents=True)
+        (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": "9.9.9"}))
+        with mock.patch.object(doctor, "APP_DIRS", (self.home / "missing", self.home)):
+            self.assertEqual(doctor.dsh_app_version(), "9.9.9")
+        with mock.patch.object(doctor, "APP_DIRS", (self.home / "missing",)):
+            self.assertIsNone(doctor.dsh_app_version())
 
 
 if __name__ == "__main__":

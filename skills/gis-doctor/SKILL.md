@@ -34,3 +34,11 @@ doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`
 - Codex 单文件入口（只有 `SKILL.md`）与源 `SKILL.md` 对比，允许改写运行时位置的那一行。
 
 落后只是提示，不影响退出码；doctor 不更新任何东西，是否更新由用户决定，见 gis-plugin 的 `scripts/update_engine_skills.py`。
+
+## dsh 的 hook 桥接
+
+对 `cordis.patch.yml` 里挂了 `@deepseek-ai/dsh-hooks-claude-code` 的 dsh profile（`DSH_HOME` 生效），doctor 检查这个包是否装了、版本是否等于 App 版本：
+
+- 没装或版本不同时报告，hook 不会运行或可能不会运行。不影响退出码。
+- App 版本读 macOS 的 `Info.plist`，其它平台报“未对比”。
+- 这是静态检查：结果正常只说明包和版本对得上，不代表 hook 已运行。

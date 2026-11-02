@@ -80,8 +80,8 @@ def candidates(payload):
     return found
 
 
-def _state_file(session):
-    root = Path(os.environ.get("GIS_PLUGIN_STATE") or Path.home() / ".cache" / "gis-plugin") / "describe-seen"
+def _state_file(session, environ):
+    root = Path(environ.get("GIS_PLUGIN_STATE") or Path.home() / ".cache" / "gis-plugin") / "describe-seen"
     root.mkdir(parents=True, exist_ok=True)
     now = time.time()
     for old in root.glob("*.json"):
@@ -252,7 +252,7 @@ def run(payload, environ):
     paths = candidates(payload)
     if not paths:
         return None
-    state_path = _state_file(str(payload.get("session_id") or "no-session"))
+    state_path = _state_file(str(payload.get("session_id") or "no-session"), environ)
     try:
         seen = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -287,7 +287,7 @@ def main():
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": payload.get("hook_event_name", "PostToolUse"),
             "additionalContext": context,
-        }}, ensure_ascii=False))
+        }}))  # ASCII escapes: Chinese text survives whatever code page a Windows hook's stdout uses
     return 0
 
 
