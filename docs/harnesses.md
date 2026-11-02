@@ -21,14 +21,14 @@
 |---|---|---|---|
 | CC | `Write`、`Edit`、`MultiEdit` → `file_path`；`NotebookEdit` → `notebook_path` | `Bash` → `command` | 载荷含 `cwd` |
 | Codex | `apply_patch` → `command`（补丁文本，`*** Add/Update/Delete File:`、`*** Move to:` 行） | `Bash` → `command` | 载荷含 `cwd` |
-| dsh 桥接 | `edit`、`write` → `file_path` | `bash` → `command`，可带 `workdir` | 载荷含 `cwd` |
+| dsh 桥接 | `edit`、`write` → `file_path` | `bash`（Windows 上是 `pwsh`）→ `command`，可带 `workdir` | 载荷含 `cwd` |
 
 ## 2. 设计决定
 
 1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。这些变量只供 doctor 与 hooks 使用；各引擎的 skill 入口在其仓库内直接调用本仓库 CLI，不读它们。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
 3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`PostToolUse` 的 `additionalContext`（元数据注入）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
-4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|apply_patch|write|edit|bash)$`，命令为 `"${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"`；解释器覆盖在 CC 与 Codex 实测生效。
+4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|apply_patch|write|edit|bash|powershell|pwsh)$`，命令为 `"${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"`；解释器覆盖在 CC 与 Codex 实测生效。
 5. **dsh 接入**：skill 目录软链进 `<dshHome>/skills`（web profile 中宿主层 `skill-filesystem` 已禁用，由 agent preset 发现）；hooks 用 profile 补丁挂 `dsh-hooks-claude-code`，见 §4。地图标签页等界面适配以后放 `adapters/dsh`。
 
 ## 3. 目录
@@ -64,7 +64,9 @@ python3 scripts/update_engine_skills.py
 
 脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。要不要更新，先看 `gis-doctor`：它把各宿主里的副本与源仓库逐文件比对，落后时列出缺少或不同的文件。
 
-引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。
+引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。Windows 上命令里的反斜杠按路径分隔符处理，`C:\tools\gis.py` 不用改写；路径带空格时加引号。
+
+**Windows 上的 hook 解释器：** `hooks.json` 的 `${GIS_PLUGIN_PYTHON:-python3}` 是 POSIX shell 语法，而 Windows 的 `python3` 常常只是应用商店占位程序。宿主如果不经 POSIX shell 运行 hook，这个写法不会展开，设了 `GIS_PLUGIN_PYTHON` 也没用。dsh 桥接在 Windows 上用什么 shell 运行 hook 还没有实测（见 §6），在此之前不要假定 Windows 上的 hook 在运行，先写一次受保护文件确认。
 
 **版本号与更新**：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 `version` 保持一致（测试检查）。版本号相同时 CC 的 `claude plugin update` 视为已是最新、不会刷新安装副本（2026-10-10 实测），因此改动进入安装副本且影响行为（skills、hooks、清单）时随同一提交提版本：1.0 之前，删除或不兼容（如移除 skill、改变读取的约定版本）提 minor，其余提 patch；只改文档、测试、evals 不提。推送后更新各宿主：
 
@@ -124,3 +126,5 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
 - dsh 0.2.1 真实模型回合：deny、两种注入，以及模型是否采信卡片。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
 - 大小写判定在 Windows 和真实宿主回合中的表现。
+- Windows：dsh 桥接和 CC 用什么 shell 运行 hook，`${GIS_PLUGIN_PYTHON:-python3}` 能否展开；桥接的 stdout 按什么编码读。
+- `pwsh`、`PowerShell` 工具的载荷字段：`protect_sources.py` 按 `tool_input.command` 读，目前只有离线验证。

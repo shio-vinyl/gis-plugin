@@ -231,10 +231,20 @@ def semantics_card(path, registry):
     return "\n".join(lines)
 
 
+def split_command(command, windows=os.name == "nt"):
+    """Split like a shell; on Windows a backslash is a path separator, not an escape. Quotes go either way."""
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    if windows:
+        lexer.escape = ""
+    return list(lexer)
+
+
 def describe(command, path):
     try:
-        proc = subprocess.run(command + ["describe", str(path), "--json"], capture_output=True, text=True,
-                              timeout=DESCRIBE_TIMEOUT, stdin=subprocess.DEVNULL)
+        proc = subprocess.run(command + ["describe", str(path), "--json"], capture_output=True, encoding="utf-8", errors="replace",
+                              env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=DESCRIBE_TIMEOUT, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         return None
     if proc.returncode != 0:
@@ -248,7 +258,7 @@ def describe(command, path):
 
 def run(payload, environ):
     raw = engine_settings(environ).get("GIS_KIT_CMD", "").strip()
-    command = shlex.split(raw) if raw else None
+    command = split_command(raw) if raw else None
     paths = candidates(payload)
     if not paths:
         return None
@@ -278,7 +288,7 @@ def run(payload, environ):
 
 def main():
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")  # never the Windows code page
         context = run(payload, os.environ)
     except Exception as exc:  # a broken hook must not disturb the session
         print(f"gis-plugin inject_describe: {exc}", file=sys.stderr)

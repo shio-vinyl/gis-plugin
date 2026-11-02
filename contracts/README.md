@@ -99,7 +99,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 大小写跟随文件系统：登记文件所在的卷不区分大小写时（macOS、Windows 默认如此），`RAW/A.CSV` 也算写入 `raw/**`；区分大小写的卷上按原样匹配。
 - 外壳 hook（`hooks/scripts/protect_sources.py`）从被写路径逐级向上查找登记文件，因此保护跟随数据，与宿主工作目录无关。
 - 登记文件无效时，其目录树内的写入一律拒绝并说明原因；目录树外不受影响。
-- 识别范围：文件编辑工具、Codex `apply_patch`，以及 shell 命令中的重定向与常见写入命令（`rm`、`mv`、`cp`、`sed -i`、`tee`、`ogr2ogr`、`gdalwarp`、`gdal_edit.py` 等）。shell 识别是尽力而为，脚本内部的写入不在拦截范围。
+- 识别范围：文件编辑工具、Codex `apply_patch`，shell 命令中的重定向与常见写入命令（`rm`、`mv`、`cp`、`sed -i`、`tee`、`ogr2ogr`、`gdalwarp`、`gdal_edit.py` 等），以及 PowerShell 的写入命令和别名（`Set-Content`、`Add-Content`、`Clear-Content`、`Out-File`、`Tee-Object`、`Export-Csv`、`New-Item`、`Remove-Item`、`Move-Item`、`Rename-Item`、`Copy-Item` 等）。shell 识别是尽力而为，脚本内部的写入（`python -c`、`[IO.File]::WriteAllText`）和变量里的路径都不在拦截范围。
 
 ## describe
 
