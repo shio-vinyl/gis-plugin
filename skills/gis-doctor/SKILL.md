@@ -42,3 +42,12 @@ doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`
 - 没装或版本不同时报告，hook 不会运行或可能不会运行。不影响退出码。
 - App 版本读 macOS 的 `Info.plist`，其它平台报“未对比”。
 - 这是静态检查：结果正常只说明包和版本对得上，不代表 hook 已运行。
+
+## hook 命令能否运行
+
+doctor 取 `hooks/hooks.json` 里的保护 hook 命令，在这个平台各宿主用的 shell 里各跑一次，让它判断一个临时目录里的探针路径（带中文和空格），只有收到 deny 才算正常：
+
+- macOS、Linux：`sh -c`（CC）、`bash -c`（dsh）、`$SHELL -lc`（Codex）。
+- Windows：PowerShell 7、Windows PowerShell 5.1（dsh）、Git Bash（CC）。Codex 在 Windows 上用什么 shell 未知，不检查。
+
+命令解析失败、解释器不存在或是占位程序、stdin 里的中文被改坏时报告，不影响退出码。探针用的是 doctor 自己的环境变量，宿主进程的环境可能不同；要确认宿主里生效，还得在真实回合写一次受保护文件。

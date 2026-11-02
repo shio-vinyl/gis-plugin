@@ -10,6 +10,7 @@
 | skills | `skills/<name>/SKILL.md` | 同格式 | 同格式；由 agent preset 扫描 `<dshHome>/skills`、`.agents/skills` 等 |
 | hooks | 默认 `hooks/hooks.json` | 清单 `hooks` 字段指向的文件，可与 CC 共用；新 hook 须经用户信任才运行 | 经 `dsh-hooks-claude-code` 桥接运行 CC 格式；App 0.2.1 起桥接不随 App 打包，须装进 profile，版本与 App 相同 |
 | `CLAUDE_PLUGIN_ROOT` | 命令中替换并导出 | 由 Codex 设置并导出 | 桥接按 `pluginRoot` 在命令中替换，不导出 |
+| hook 命令的 shell | 见 §4“hook 命令” | 见 §4“hook 命令” | 见 §4“hook 命令” |
 | MCP | `.mcp.json` | `.mcp.json` | `dsh-mcp-client`，每个 server 一项 |
 | 用户配置 | `userConfig`（值只传给 hook 进程与 skill 文本，不进 Bash 工具环境） | 无对应字段 | profile YAML |
 | 安装方式 | 本地 marketplace，原地加载 | 本地 marketplace，**复制**进缓存，改动后需重装；CLI 与 App 共用 `~/.codex` | 无插件安装；skills 软链进 `<dshHome>/skills` |
@@ -28,7 +29,7 @@
 1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。这些变量只供 doctor 与 hooks 使用；各引擎的 skill 入口在其仓库内直接调用本仓库 CLI，不读它们。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
 3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`PostToolUse` 的 `additionalContext`（元数据注入）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
-4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|apply_patch|write|edit|bash|powershell|pwsh)$`，命令为 `"${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"`；解释器覆盖在 CC 与 Codex 实测生效。
+4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|apply_patch|write|edit|bash|powershell|pwsh)$`，命令同时能被 POSIX shell 和 PowerShell 解析，写法和取舍见 §4“hook 命令”；解释器覆盖在 CC 与 Codex 实测生效（2026-10，当时还是只支持 POSIX shell 的写法）。
 5. **dsh 接入**：skill 目录软链进 `<dshHome>/skills`（web profile 中宿主层 `skill-filesystem` 已禁用，由 agent preset 发现）；hooks 用 profile 补丁挂 `dsh-hooks-claude-code`，见 §4。地图标签页等界面适配以后放 `adapters/dsh`。
 
 ## 3. 目录
@@ -68,7 +69,39 @@ python3 scripts/update_engine_skills.py
 
 值按命令行拆分，所以路径带空格时只给这个路径加引号，比如 `GIS_KIT_CMD=python "C:\my tools\gis.py"`，或者每段都加引号。不要把整条命令放进一对引号再让里面的路径带空格：`GIS_KIT_CMD="python C:\my tools\gis.py"` 拆不出这个路径。
 
-**Windows 上的 hook 解释器：** `hooks.json` 的 `${GIS_PLUGIN_PYTHON:-python3}` 是 POSIX shell 语法，而 Windows 的 `python3` 常常只是应用商店占位程序。宿主如果不经 POSIX shell 运行 hook，这个写法不会展开，设了 `GIS_PLUGIN_PYTHON` 也没用。dsh 桥接在 Windows 上用什么 shell 运行 hook 还没有实测（见 §6），在此之前不要假定 Windows 上的 hook 在运行，先写一次受保护文件确认。
+**hook 命令：** `hooks.json` 只有一个 `command`，要在下面这些 shell 里都能运行：
+
+| 宿主 | macOS、Linux | Windows | 依据 |
+|---|---|---|---|
+| CC | `sh -c` | Git Bash；没有 Git Bash 时用 PowerShell | 官方文档；Windows 未实测 |
+| Codex | `$SHELL -lc` | 未知。文档有 `commandWindows` 覆盖字段，但没说默认 shell | 0.160.0 二进制里的字符串和文档；Windows 未实测 |
+| dsh | `bash -c` | `pwsh -NoLogo -NoProfile -NonInteractive -Command`，命令前加一段固定输出编码的语句；找不到 `pwsh` 时用 Windows PowerShell 5.1 | 读 0.2.1-rc.3 的 `dsh-shell`、`dsh-pwsh-local`；Windows 未实测 |
+
+写法（`<script>` 为脚本名）：
+
+```text
+exec "${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"; $p = $env:GIS_PLUGIN_PYTHON, 'python' -match '.'; . $p[0] "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<script>.py"
+```
+
+- POSIX shell 只运行 `exec` 这一段，进程被替换，后面的不会执行，但整行仍要能解析：所以后半段不用 `&`、`if (...)`，它们在 `sh`、`zsh` 里是语法错误。
+- PowerShell 里 `exec` 不是可用的命令（Unix 版的同名函数收到空命令同样报错），报错后继续往下，由后半段选解释器。Windows 默认用 `python`，因为 `python3` 常常只是应用商店占位程序。两边都用 `GIS_PLUGIN_PYTHON` 覆盖，值是单个可执行文件，不带参数；空字符串等于没设。
+- 不能写 `$input`：写了 stdin 会经 PowerShell 按 `$OutputEncoding` 重新编码（pwsh 7 实测，ASCII 编码下中文变成 `?`），不写时原样交给 Python。5.1 没有 `||`、`&&`、`??`，也不能用。
+
+**取舍：** 这行不好读，好处是所有宿主共用一个文件，dsh 补丁也不用分平台。代价有三个：
+
+- PowerShell 下每次 hook 的 stderr 都有一条 `exec` 的报错，只进 hook 日志，不影响判定。
+- `-Command` 只给出退出码 0 或 1，退出码 2 传不出来。两个脚本的 deny 和卡片都走 stdout 的 JSON，不依赖退出码。
+- 只在 `cmd.exe` 里运行时不能工作。Codex 在 Windows 上如果用它，就要另写 `commandWindows`，等查清再加（见 §6）。
+
+**解释器不对时保护会静默失效：** 宿主把退出码 1 或 127 当作 hook 自身的错误，不算拒绝，受保护文件照样能写（CC 在 Windows 没有 Git Bash 时例外，它按文档只认 0 和 2）。`gis-doctor` 会在本平台各 shell 里实际跑一次这条命令，没有收到 deny 就报告。它用自己的环境变量，所以还要在真实回合写一次受保护文件。
+
+Windows 上 `python` 也可能是占位程序，这时要指定解释器，下面的示例须用户授权执行，之后要重启宿主才能拿到新变量（重启后是否生效未实测）。不会自动改用 dsh 自带的 `gis-runtime`，它是否存在、版本是否合适都由用户决定。
+
+```powershell
+setx GIS_PLUGIN_PYTHON "<python.exe 的完整路径>"
+```
+
+这条命令一变，`hooks.json` 的内容就变了。Codex 按内容哈希记录信任，更新后应当要重新信任本插件的 hooks（未实测）。
 
 **版本号与更新**：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 `version` 保持一致（测试检查）。版本号相同时 CC 的 `claude plugin update` 视为已是最新、不会刷新安装副本（2026-10-10 实测），因此改动进入安装副本且影响行为（skills、hooks、清单）时随同一提交提版本：1.0 之前，删除或不兼容（如移除 skill、改变读取的约定版本）提 minor，其余提 patch；只改文档、测试、evals 不提。推送后更新各宿主：
 
@@ -123,10 +156,20 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
 - 桥接试装（2026-11-02，隔离 profile，已回滚）：按 §4 安装后启动不再报模块错误；加载已装的桥接模块、用模拟事件离线运行，`edit`、`write`、`bash` 重定向、`rm` 都 deny，`PostToolUse` 和 `UserPromptSubmit` 都有卡片。profile 里的副本没有 dsh-purge 的补丁痕迹。profile 和 App 内置包形成两套模块，这次能加载，单例是否一致未验证。真实模型回合未跑：`headless` 模板禁用了 `credentials` 插件，启动报 `MISSING_CREDENTIAL`。
 - 大小写绕过（2026-11-02，[#26](https://github.com/shioo-gis/gis-plugin/issues/26)）：Codex 真实回合中，`apply_patch`、重定向、`rm`、`cp`、`mv` 写 `RAW/...` 都未被拦截，文件实际改变。现已修复并有离线测试，尚未回到宿主真实回合复测。
 
+- hook 命令跨 shell（2026-11-02，macOS，PowerShell 7.6.9 便携版；Windows 未测）：
+  - 按 `dsh-pwsh-local` 的参数运行旧写法：`ParserError`，退出码 1，stdout 为空。这证实了读代码的结论，但只在 pwsh 7 上，不是 5.1。
+  - 新写法：插件目录、数据目录和解释器路径都带中文和空格时，stdin 原样到达 Python，deny 的 JSON（约 600 字符）没有折行。解释器不存在时退出码 1、stdout 为空。
+  - `sh`、`bash`、`dash`、`zsh`，以及 `bash -lc`、`zsh -lc`：后半段不执行，覆盖、默认值、解释器缺失都符合预期。这些都有离线测试。
+  - 加载本机装的真实桥接模块（0.2.1-rc.3），只替换了它依赖的 `dsh-llm`，事件和 `ctx` 是模拟的，经真实的 `bash -c`、`pwsh -Command` 运行：新写法在两种 shell 下，`write`、`edit`、`bash`、`pwsh` 写受保护路径都 deny，未登记路径放行。对照组：旧写法在 pwsh 下全部放行，bash 下正常。没有跑 dsh 真实模型回合。
+  - CC 2.1.258：`--plugin-dir` 指向工作区时，新命令在 `UserPromptSubmit` 上实际运行（解释器垫片的日志为证）；模型回合因 CLI 登录过期没跑成，`PreToolUse` 未在 CC 真实回合复测。`claude plugin validate --strict` 通过。
+  - Codex：这次没有跑真实回合。
+
 ## 6. 待实测
 
 - dsh 0.2.1 真实模型回合：deny、两种注入，以及模型是否采信卡片。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
 - 大小写判定在 Windows 和真实宿主回合中的表现。
-- Windows：dsh 桥接和 CC 用什么 shell 运行 hook，`${GIS_PLUGIN_PYTHON:-python3}` 能否展开；桥接的 stdout 按什么编码读。
+- Windows：`hooks.json` 新写法在 dsh（pwsh 7 和 5.1）的真实回合中是否 deny，包括路径带中文和空格；5.1 下 `exec` 报错后是否继续、中文 stdin 是否原样到达（dsh 文档说 5.1 的非 ASCII stdin 可能解码错误；pwsh 7 上不写 `$input` 时原样到达）、长 JSON 是否折行。
+- Windows：CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
+- macOS：新写法在 CC（`PreToolUse`）、Codex、dsh 的真实回合；Codex 更新后是否要重新信任 hooks。
 - `pwsh`、`PowerShell` 工具的载荷字段：`protect_sources.py` 按 `tool_input.command` 读，目前只有离线验证。

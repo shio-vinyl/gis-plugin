@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Check GIS engines via `<engine> capabilities --json`, and the engine skills installed in each harness
-against their source repositories. Standard library only; never installs or updates anything."""
+"""Check GIS engines via `<engine> capabilities --json`, the engine skills installed in each harness against
+their source repositories, and whether the hook command runs. Standard library only; never installs or updates anything."""
 
 import argparse
 import difflib
 import filecmp
 import json
+import ntpath
 import os
 import plistlib
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ENGINES = (
@@ -35,6 +38,8 @@ UPDATE_SCRIPT = str(_UPDATER) if _UPDATER.is_file() else "<gis-plugin>/scripts/u
 APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
 BRIDGE = "@deepseek-ai/dsh-hooks-claude-code"
 BRIDGE_LINE = re.compile(r"^\s*(?:-\s*)?name:\s*['\"]?" + re.escape(BRIDGE) + r"['\"]?\s*(?:#.*)?$", re.M)
+HOOKS_FILE = Path(__file__).resolve().parents[3] / "hooks" / "hooks.json"
+POWERSHELL_ARGS = ("-NoLogo", "-NoProfile", "-NonInteractive", "-Command")
 
 
 def engine_settings(environ):
@@ -352,6 +357,69 @@ def check_dsh_hooks(environ):
     return results
 
 
+def hook_shells(environ, windows=os.name == "nt"):
+    """(label, argv prefix) of the shells harnesses on this platform run hook commands in, where they exist."""
+    shells = []
+    if windows:
+        program_files = environ.get("ProgramFiles", r"C:\Program Files")
+        pwsh = ntpath.join(program_files, "PowerShell", "7", "pwsh.exe")
+        pwsh = pwsh if os.path.isfile(pwsh) else shutil.which("pwsh", path=environ.get("PATH"))
+        if pwsh:
+            shells.append(("PowerShell 7，dsh 优先用", [pwsh, *POWERSHELL_ARGS]))
+        legacy = ntpath.join(environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        if os.path.isfile(legacy):
+            shells.append(("Windows PowerShell 5.1，dsh 没有 pwsh 时用", [legacy, *POWERSHELL_ARGS]))
+        git_bash = environ.get("CLAUDE_CODE_GIT_BASH_PATH") or ntpath.join(program_files, "Git", "bin", "bash.exe")
+        if os.path.isfile(git_bash):
+            shells.append(("Git Bash，CC", [git_bash, "-c"]))
+        return shells
+    if os.path.isfile("/bin/sh"):
+        shells.append(("sh，CC", ["/bin/sh", "-c"]))
+    bash = shutil.which("bash", path=environ.get("PATH"))
+    if bash:
+        shells.append(("bash，dsh", [bash, "-c"]))
+    if environ.get("SHELL"):
+        shells.append((f"{Path(environ['SHELL']).name} -lc，Codex", [environ["SHELL"], "-lc"]))
+    return shells
+
+
+def probe_hook_command(command, argv, environ):
+    """Run the protection hook in one shell against a throwaway registered path. Only a deny proves it worked."""
+    with tempfile.TemporaryDirectory(prefix="gis-doctor-hook-") as tmp:
+        data = Path(tmp) / "探针 目录"
+        (data / ".gis").mkdir(parents=True)
+        registry = {"contract": "sources", "schema_version": 1, "protected": ["原始/**"]}
+        (data / ".gis" / "sources.json").write_text(json.dumps(registry, ensure_ascii=False), encoding="utf-8")
+        payload = {"hook_event_name": "PreToolUse", "tool_name": "write", "cwd": str(data),
+                   "tool_input": {"file_path": str(data / "原始" / "甲.csv")}}
+        try:
+            done = subprocess.run([*argv, command], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                                  capture_output=True, cwd=data, env=dict(environ), timeout=TIMEOUT_SECONDS)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"status": "warn", "message": f"hook 没运行（{exc}），受保护文件照样能写"}
+    try:
+        denied = json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    except (ValueError, KeyError, TypeError):
+        denied = False
+    if denied:
+        return {"status": "ok", "message": "探针写入被拒绝（用的是 doctor 的环境变量，宿主的可能不同）"}
+    # The tail: under PowerShell the head is always the harmless complaint about `exec`.
+    stderr = done.stderr.decode("utf-8", "replace").strip()[-STDERR_MAX_CHARS:]
+    if done.returncode:
+        return {"status": "warn", "message": f"hook 没运行（退出码 {done.returncode}），受保护文件照样能写", "stderr": stderr}
+    return {"status": "warn", "message": "命令跑完了但没有拒绝探针写入，受保护文件可能照样能写；探针路径带中文，可能没有原样传到 hook", "stderr": stderr}
+
+
+def check_hook_commands(environ):
+    """Does the command in hooks.json run here? A parse error or a missing interpreter is otherwise silent."""
+    try:
+        command = json.loads(HOOKS_FILE.read_text(encoding="utf-8"))["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        return [{"shell": "未检查", "status": "unknown", "message": f"读不到 {HOOKS_FILE}"}]
+    command = command.replace("${CLAUDE_PLUGIN_ROOT}", str(HOOKS_FILE.parents[1]))
+    return [{"shell": label, **probe_hook_command(command, argv, environ)} for label, argv in hook_shells(environ)]
+
+
 def run(environ):
     settings = engine_settings(environ)
     engines = [check_engine(name, var, minimum, settings) for name, var, minimum in ENGINES]
@@ -362,6 +430,7 @@ def run(environ):
         "contracts": check_contracts(engines),
         "skills": check_skills(settings, environ),
         "hooks": check_dsh_hooks(environ),
+        "hook_commands": check_hook_commands(environ),
     }
 
 
@@ -402,6 +471,13 @@ def render_text(report):
         lines.append(f"- dsh hooks（{item['profile']}）：{item['message']}")
     if any(item["status"] == "warn" for item in hooks):
         lines.append("  dsh 的桥接须与 App 同版本；是否安装由用户决定，步骤见 gis-plugin 的 docs/harnesses.md §4")
+    commands = report.get("hook_commands", [])
+    for item in commands:
+        lines.append(f"- hook 命令（{item['shell']}）：{item['message']}")
+        if item.get("stderr"):
+            lines.append(f"    stderr: {item['stderr']}")
+    if any(item["status"] == "warn" for item in commands):
+        lines.append("  解释器不对时用环境变量 GIS_PLUGIN_PYTHON 指定完整路径，见 gis-plugin 的 docs/harnesses.md §4")
     return "\n".join(lines)
 
 
