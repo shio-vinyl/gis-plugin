@@ -7,6 +7,7 @@ import difflib
 import filecmp
 import json
 import os
+import plistlib
 import re
 import shlex
 import subprocess
@@ -31,6 +32,9 @@ TOP_FIELDS = ("contract", "schema_version", "engine", "engine_version", "command
 LIST_MAX = 10
 _UPDATER = Path(__file__).resolve().parents[3] / "scripts" / "update_engine_skills.py"
 UPDATE_SCRIPT = str(_UPDATER) if _UPDATER.is_file() else "<gis-plugin>/scripts/update_engine_skills.py"
+APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
+BRIDGE = "@deepseek-ai/dsh-hooks-claude-code"
+BRIDGE_LINE = re.compile(r"^\s*(?:-\s*)?name:\s*['\"]?" + re.escape(BRIDGE) + r"['\"]?\s*(?:#.*)?$", re.M)
 
 
 def engine_settings(environ):
@@ -288,6 +292,55 @@ def check_skills(settings, environ):
     return results
 
 
+def dsh_app_version():
+    """The DeepSeek Harness App's version from its Info.plist; None where it cannot be found (other platforms too)."""
+    for apps in APP_DIRS:
+        try:
+            with open(apps / "DeepSeek Harness.app" / "Contents" / "Info.plist", "rb") as handle:
+                return plistlib.load(handle).get("CFBundleShortVersionString")
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def _bridge_version(profile):
+    """The version of the bridge a profile resolves: its own node_modules, then the one shared under profiles/."""
+    for base in (profile, profile.parent):
+        try:
+            manifest = json.loads((base / "node_modules" / BRIDGE / "package.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        return str(manifest.get("version"))
+    return None
+
+
+def check_dsh_hooks(environ):
+    """Profiles attaching the hook bridge: is the package there, at the App's version?
+
+    Static only. A bad result proves the hooks cannot run; a good one does not prove they ran."""
+    home = Path(environ.get("HOME") or os.path.expanduser("~"))
+    results, app = [], dsh_app_version()
+    for patch in sorted((Path(environ.get("DSH_HOME") or home / ".dsh") / "profiles").glob("*/cordis.patch.yml")):
+        try:
+            attached = BRIDGE_LINE.search(patch.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not attached:
+            continue
+        version = _bridge_version(patch.parent)
+        result = {"harness": "dsh", "profile": patch.parent.name, "bridge": version, "app": app}
+        if version is None:
+            result.update(status="warn", message=f"cordis.patch.yml 挂了 {BRIDGE}，但没装这个包，这个 profile 的 hook 不会运行")
+        elif app is None:
+            result.update(status="unknown", message=f"桥接 {version} 已装；找不到 App 版本，未对比")
+        elif version != app:
+            result.update(status="warn", message=f"桥接 {version} 与 App {app} 版本不同；桥接的 peer 依赖锁定同版本，hook 可能不会运行")
+        else:
+            result.update(status="ok", message=f"桥接 {version}，与 App 版本一致（只查了包和版本，不代表 hook 已运行）")
+        results.append(result)
+    return results
+
+
 def run(environ):
     settings = engine_settings(environ)
     engines = [check_engine(name, var, minimum, settings) for name, var, minimum in ENGINES]
@@ -297,6 +350,7 @@ def run(environ):
         "engines": engines,
         "contracts": check_contracts(engines),
         "skills": check_skills(settings, environ),
+        "hooks": check_dsh_hooks(environ),
     }
 
 
@@ -332,6 +386,11 @@ def render_text(report):
     if any(item["status"] == "warn" for item in stale):
         lines.append(f"  已装的 skill 落后时，模型读到的说明和脚本与引擎实际不符。是否更新由用户决定："
                      f"python3 {UPDATE_SCRIPT} --dry-run 先看会做什么")
+    hooks = report.get("hooks", [])
+    for item in hooks:
+        lines.append(f"- dsh hooks（{item['profile']}）：{item['message']}")
+    if any(item["status"] == "warn" for item in hooks):
+        lines.append("  dsh 的桥接须与 App 同版本；是否安装由用户决定，步骤见 gis-plugin 的 docs/harnesses.md §4")
     return "\n".join(lines)
 
 

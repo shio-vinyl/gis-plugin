@@ -96,6 +96,14 @@ class InjectDescribe(unittest.TestCase):
         self.assertIsNotNone(hook.run(payload, self.env))
         self.assertEqual(len(self.calls()), 3)
 
+    def test_state_location_comes_from_the_given_environment(self):
+        home = self.tmp / "home"
+        with mock.patch.dict(os.environ, {"HOME": str(home), "USERPROFILE": str(home)}):
+            os.environ.pop("GIS_PLUGIN_STATE", None)
+            self.assertIsNotNone(hook.run(self.prompt("data/dem.tif"), self.env))
+        self.assertFalse(home.exists())
+        self.assertEqual([p.name for p in (self.tmp / "state" / "describe-seen").iterdir()], ["s1.json"])
+
     def test_limits_failures_and_missing_engine(self):
         for i in range(5):
             (self.data / f"l{i}.gpkg").write_text("x", encoding="utf-8")
@@ -166,6 +174,7 @@ class InjectDescribe(unittest.TestCase):
         self.assertEqual(out["hookEventName"], "UserPromptSubmit")
         self.assertIn("[gis-kit describe]", out["additionalContext"])
         self.assertTrue(out["additionalContext"].startswith(hook.SOURCE_LINE))
+        self.assertTrue(result.stdout.isascii())
         broken = run("not json")
         self.assertEqual((broken.returncode, broken.stdout), (0, ""))
 

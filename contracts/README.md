@@ -96,6 +96,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 - `*`、`?` 不跨目录，`**` 跨目录；`dir/**` 同时覆盖 `dir` 本身；写入目录内任何文件都算写入该目录。
 - 附属文件随主数据保护：`roads.shp` 覆盖 `.shx`、`.dbf`、`.prj`、`.cpg` 等；任一文件覆盖其 `.aux.xml`、`.ovr`、`.msk`。
+- 大小写跟随文件系统：登记文件所在的卷不区分大小写时（macOS、Windows 默认如此），`RAW/A.CSV` 也算写入 `raw/**`；区分大小写的卷上按原样匹配。
 - 外壳 hook（`hooks/scripts/protect_sources.py`）从被写路径逐级向上查找登记文件，因此保护跟随数据，与宿主工作目录无关。
 - 登记文件无效时，其目录树内的写入一律拒绝并说明原因；目录树外不受影响。
 - 识别范围：文件编辑工具、Codex `apply_patch`，以及 shell 命令中的重定向与常见写入命令（`rm`、`mv`、`cp`、`sed -i`、`tee`、`ogr2ogr`、`gdalwarp`、`gdal_edit.py` 等）。shell 识别是尽力而为，脚本内部的写入不在拦截范围。
