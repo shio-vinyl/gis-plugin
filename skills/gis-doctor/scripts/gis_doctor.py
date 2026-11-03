@@ -361,6 +361,11 @@ def check_dsh_hooks(environ):
     return results
 
 
+def cc_present(environ):
+    """CC loads this plugin from its config directory, so without one no hook of ours runs in CC here."""
+    return bool(environ.get("CLAUDE_CODE_GIT_BASH_PATH")) or skill_dirs(environ)[0][1].parent.is_dir()
+
+
 def hook_shells(environ, windows=os.name == "nt"):
     """(label, argv prefix) of the shells harnesses on this platform run hook commands in, where they exist."""
     shells = []
@@ -374,7 +379,7 @@ def hook_shells(environ, windows=os.name == "nt"):
         if os.path.isfile(legacy):
             shells.append(("Windows PowerShell 5.1，dsh 没有 pwsh 时用", [legacy, *POWERSHELL_ARGS]))
         git_bash = environ.get("CLAUDE_CODE_GIT_BASH_PATH") or ntpath.join(program_files, "Git", "bin", "bash.exe")
-        if os.path.isfile(git_bash):
+        if os.path.isfile(git_bash) and cc_present(environ):
             shells.append(("Git Bash，CC", [git_bash, "-c"]))
         return shells
     if os.path.isfile("/bin/sh"):

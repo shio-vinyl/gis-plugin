@@ -1,6 +1,6 @@
 # 多宿主适配
 
-外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh CLI 0.1.5-rc.1；之后 dsh 只用 App 0.2.0-rc.2）核对的差异，宿主升级后需复核。dsh 的 hooks 部分已于 2026-11-02 按 App 0.2.1-rc.3 复核。
+外壳面向 Claude Code（CC）、Codex 与 dsh 三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 本文记录 2026-10-08 在本机（Codex CLI 0.160.0、Codex App 内置 CLI 0.162.0-alpha.2、dsh CLI 0.1.5-rc.1；之后 dsh 只用 App 0.2.0-rc.2）核对的差异，宿主升级后需复核。dsh 的 hooks 部分已于 2026-11-02 按 App 0.2.1-rc.3 复核；Windows 上的 hook 命令于 2026-11-03 按 App 0.2.1-rc.5 离线复测，真实回合未测。
 
 ## 1. 差异
 
@@ -73,9 +73,9 @@ python3 scripts/update_engine_skills.py
 
 | 宿主 | macOS、Linux | Windows | 依据 |
 |---|---|---|---|
-| CC | `sh -c` | Git Bash；没有 Git Bash 时用 PowerShell | 官方文档；Windows 未实测 |
+| CC | `sh -c` | Git Bash；没有 Git Bash 时用 PowerShell | 官方文档；Windows 上没有 CC，未实测 |
 | Codex | `$SHELL -lc` | 未知。文档有 `commandWindows` 覆盖字段，但没说默认 shell | 0.160.0 二进制里的字符串和文档；Windows 未实测 |
-| dsh | `bash -c` | `pwsh -NoLogo -NoProfile -NonInteractive -Command`，命令前加一段固定输出编码的语句；找不到 `pwsh` 时用 Windows PowerShell 5.1 | 读 0.2.1-rc.3 的 `dsh-shell`、`dsh-pwsh-local`；Windows 未实测 |
+| dsh | `bash -c` | `pwsh -NoLogo -NoProfile -NonInteractive -Command`，命令前加一段固定输出编码的语句；找不到 `pwsh` 时用 Windows PowerShell 5.1 | 读 0.2.1-rc.3 的 `dsh-shell`、`dsh-pwsh-local`；Windows 只离线实测过 5.1（0.2.1-rc.5），真实回合未测 |
 
 写法（`<script>` 为脚本名）：
 
@@ -93,9 +93,9 @@ exec "${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<scrip
 - `-Command` 只给出退出码 0 或 1，退出码 2 传不出来。两个脚本的 deny 和卡片都走 stdout 的 JSON，不依赖退出码。
 - 只在 `cmd.exe` 里运行时不能工作。Codex 在 Windows 上如果用它，就要另写 `commandWindows`，等查清再加（见 §6）。
 
-**解释器不对时保护会静默失效：** 宿主把退出码 1 或 127 当作 hook 自身的错误，不算拒绝，受保护文件照样能写（CC 在 Windows 没有 Git Bash 时例外，它按文档只认 0 和 2）。`gis-doctor` 会在本平台各 shell 里实际跑一次这条命令，没有收到 deny 就报告。它用自己的环境变量，所以还要在真实回合写一次受保护文件。
+**解释器不对时保护会静默失效：** 宿主把退出码 1 或 127 当作 hook 自身的错误，不算拒绝，受保护文件照样能写（CC 在 Windows 没有 Git Bash 时例外，它按文档只认 0 和 2）。`gis-doctor` 会在本平台各 shell 里实际跑一次这条命令，没有收到 deny 就报告；Git Bash 只有 CC 用，所以只在有 CC 配置目录或设了 `CLAUDE_CODE_GIT_BASH_PATH` 时才试。它用自己的环境变量，所以还要在真实回合写一次受保护文件。
 
-Windows 上 `python` 也可能是占位程序，这时要指定解释器，下面的示例须用户授权执行，之后要重启宿主才能拿到新变量（重启后是否生效未实测）。不会自动改用 dsh 自带的 `gis-runtime`，它是否存在、版本是否合适都由用户决定。
+Windows 上 `python`、`python3` 都可能是应用商店占位程序（直接运行退出码 9009，在 Git Bash 里只剩低 8 位，显示为 49），这时要指定解释器，下面的示例须用户授权执行，之后要重启宿主才能拿到新变量（重启后是否生效未实测）。不会自动改用 dsh 自带的 `gis-runtime`，它是否存在、版本是否合适都由用户决定。
 
 ```powershell
 setx GIS_PLUGIN_PYTHON "<python.exe 的完整路径>"
@@ -135,11 +135,11 @@ dsh plugin --profile <profile> add -w --save-exact @deepseek-ai/dsh-hooks-claude
 - 加 `-w`：有的安装不加会报 `ERR_PNPM_ADDING_TO_ROOT`，加了都能装。提示 `declares no dsh.bundle` 不影响挂载。
 - **profile 有按分支 URL 声明的依赖时不要直接跑这条命令。** `pnpm add` 会顺带重新解析这些依赖。`desktop` 按 master tarball 声明 dsh-purge，在它的副本上实测从 1.1.66 升到 1.1.90，且以 `ERR_PNPM_IGNORED_BUILDS` 退出、postinstall 未运行。这种 profile 可以先在别的 profile 装好并验证，再把 `node_modules/@deepseek-ai` 和 `node_modules/@standard-schema` 复制过去，不动 `package.json` 和 lock；删掉这两个目录即回退。之后在该 profile 上跑 pnpm 可能清掉它们，`gis-doctor` 会报告。
 - App 升级后要按新版本重装。`gis-doctor` 会检查这两个包是否装了、版本是否等于 App 版本；它是静态检查，要确认 hook 真在运行，还得写一次受保护文件。`desktop` 由 App 独占，CLI 启动时报 `managed exclusively by the Electron application`，只能在 App 里验证。
-- `--from-default-profile headless` 建的 profile 要跑真实回合，又不想配环境变量时，按 dsh-headless 的说明在 overlay 里恢复 `credentials`、`authorization`、`deepseek-account` 三项（`disabled: false`）。
+- `--from-default-profile headless` 建的 profile 要跑真实回合，又不想配环境变量时，按 dsh-headless 的说明在 overlay 里恢复 `credentials`、`authorization`、`deepseek-account` 三项（`disabled: false`）。这在 macOS 上可行；Windows 0.2.1-rc.5 上恢复后仍报 `MISSING_CREDENTIAL`，原因未查。
 
 桥接一个实例只读一个 `configPath`。已有自己的 CC hooks 时不必合并文件，在同一个 `insert` 下再挂一个实例（另起 `id`，`configPath` 指向自己的 `settings.json` 或 `hooks.json`）即可，两份互不影响。
 
-dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中的哨兵值，使用户自己 hook 的 deny 永久失效（上游 issue [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80)）。**1.1.66** 起可在清洗页关掉：设置文件 `~/.dsh/dsh-purge/hooks-deny.json` 写 `{"hooksDenyBypass": false}`，插件同时排除补丁 30/31/64/65，并把宿主文件写回官方形态。
+dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中的哨兵值，使用户自己 hook 的 deny 永久失效（上游 issue [YuJunZhiXue/dsh-purge#80](https://github.com/YuJunZhiXue/dsh-purge/issues/80)）。**1.1.66** 起可在清洗页关掉：设置文件 `~/.dsh/dsh-purge/hooks-deny.json` 写 `{"hooksDenyBypass": false}`，插件同时排除补丁 30/31/64/65，并把宿主文件写回官方形态。Windows 测试机装的是 dsh-purge 1.1.89，它的设置未核对，在那边跑真实回合前要先确认 `hooksDenyBypass` 是 `false`、桥接文件没被改。
 
 ## 5. 实测记录（2026-10-08）
 
@@ -171,13 +171,20 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - 加载本机装的真实桥接模块（0.2.1-rc.3），只替换了它依赖的 `dsh-llm`，事件和 `ctx` 是模拟的，经真实的 `bash -c`、`pwsh -Command` 运行：新写法在两种 shell 下，`write`、`edit`、`bash`、`pwsh` 写受保护路径都 deny，未登记路径放行。对照组：旧写法在 pwsh 下全部放行，bash 下正常。没有跑 dsh 真实模型回合。
   - CC 2.1.258：`--plugin-dir` 指向工作区时，新命令在 `UserPromptSubmit` 上实际运行（解释器垫片的日志为证）；模型回合因 CLI 登录过期没跑成，`PreToolUse` 未在 CC 真实回合复测。`claude plugin validate --strict` 通过。
   - Codex：这次没有跑真实回合。
+- hook 命令跨 shell（2026-11-03，Windows，[#31](https://github.com/shioo-gis/gis-plugin/issues/31)；App 0.2.1-rc.5，Windows PowerShell 5.1，没有 pwsh 7，提交 `c8a3ad8`）。只有离线结果，没有真实回合：
+  - 旧写法：`ParserError`，退出码 1，stdout 为空。
+  - 新写法，`GIS_PLUGIN_PYTHON` 指向可用解释器：英文路径、中文路径、中文带空格的插件目录、139 字符长路径都 deny，退出码 0，stdout 是一行 ASCII JSON。`exec` 报错后后半段继续执行。未登记路径退出码 0、stdout 为空。
+  - 新写法，不设 `GIS_PLUGIN_PYTHON`（`python` 是占位程序）或指向不存在的文件：退出码 1，stdout 为空。
+  - 离线测试：PowerShell 用例全部通过；`InstalledSkills` 的 6 个用例在清理时报错，原因是 Git 的只读对象挡住 `shutil.rmtree`，已修，修复未回到 Windows 复测。
+  - doctor 的 Git Bash 探针：不设 `GIS_PLUGIN_PYTHON` 时退出码 49，推断是 `python3` 占位程序的 9009（`9009 & 0xFF = 49`），报告没留 stderr。设了以后仍是 49，原因未查清：同一轮的 `HookCommands` 测试同样用 Git Bash、同样设了解释器却通过（读代码推断，报告没列出单项），已知差别是测试把 `HOME` 换成了空目录。这台机器没有 CC，所以这个结果不影响它的 dsh。
+  - 真实回合：一次性 profile 和桥接都装好了，运行时报 `MISSING_CREDENTIAL`，没跑成。受保护文件能否写入未知。
 
 ## 6. 待实测
 
 - `desktop` 上的两种注入。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
 - 大小写判定在 Windows 和真实宿主回合中的表现。
-- Windows：`hooks.json` 新写法在 dsh（pwsh 7 和 5.1）的真实回合中是否 deny，包括路径带中文和空格；5.1 下 `exec` 报错后是否继续、中文 stdin 是否原样到达（dsh 文档说 5.1 的非 ASCII stdin 可能解码错误；pwsh 7 上不写 `$input` 时原样到达）、长 JSON 是否折行。
-- Windows：CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
+- Windows：`hooks.json` 新写法在 dsh 真实回合中是否 deny，包括路径带中文和空格（5.1 的离线部分已测，见 §5）；pwsh 7 的离线和真实回合；Windows 上 `MISSING_CREDENTIAL` 的原因；dsh-purge 1.1.89 的 `hooksDenyBypass`。
+- Windows：Git Bash 下设了 `GIS_PLUGIN_PYTHON` 仍退出码 49 的原因；CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
 - macOS：新写法在 CC（`PreToolUse`）、Codex、dsh 的真实回合；Codex 更新后是否要重新信任 hooks。
 - `pwsh`、`PowerShell` 工具的载荷字段：`protect_sources.py` 按 `tool_input.command` 读，目前只有离线验证。

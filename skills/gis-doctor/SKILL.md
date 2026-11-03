@@ -48,6 +48,6 @@ doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`
 doctor 取 `hooks/hooks.json` 里的保护 hook 命令，在这个平台各宿主用的 shell 里各跑一次，让它判断一个临时目录里的探针路径（带中文和空格），只有收到 deny 才算正常：
 
 - macOS、Linux：`sh -c`（CC）、`bash -c`（dsh）、`$SHELL -lc`（Codex）。
-- Windows：PowerShell 7、Windows PowerShell 5.1（dsh）、Git Bash（CC）。Codex 在 Windows 上用什么 shell 未知，不检查。
+- Windows：PowerShell 7、Windows PowerShell 5.1（dsh）、Git Bash（CC，只在有 CC 配置目录或设了 `CLAUDE_CODE_GIT_BASH_PATH` 时）。Codex 在 Windows 上用什么 shell 未知，不检查。
 
 命令解析失败、解释器不存在或是占位程序、stdin 里的中文被改坏时报告，不影响退出码。探针用的是 doctor 自己的环境变量，宿主进程的环境可能不同；要确认宿主里生效，还得在真实回合写一次受保护文件。

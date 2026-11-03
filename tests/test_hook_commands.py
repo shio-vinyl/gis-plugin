@@ -1,5 +1,6 @@
 """Run the commands in hooks.json the way each harness does. PowerShell cases need `pwsh` or `powershell`
-on PATH, or GIS_TEST_PWSH pointing at one; they skip otherwise."""
+on PATH, or GIS_TEST_PWSH pointing at one; Git Bash cases need Windows and Git for Windows, or GIS_TEST_GIT_BASH
+pointing at a bash. They skip otherwise."""
 
 import json
 import os
@@ -29,6 +30,14 @@ def posix_shells():
 def powershells():
     paths = [os.environ.get("GIS_TEST_PWSH"), shutil.which("pwsh"), shutil.which("powershell")]
     return [path for path in dict.fromkeys(paths) if path]
+
+
+def git_bash():
+    """The shell CC uses on Windows, in its default location."""
+    if os.environ.get("GIS_TEST_GIT_BASH"):
+        return os.environ["GIS_TEST_GIT_BASH"]
+    path = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin" / "bash.exe"
+    return str(path) if os.name == "nt" and path.is_file() else None
 
 
 def fake_interpreter(path, marker):
@@ -140,6 +149,24 @@ class PosixShells(Fixture):
         # The contrast PowerShell lacks: POSIX shells accept the bare quoted form too, so only PowerShell tests catch it.
         old = '"${GIS_PLUGIN_PYTHON:-python3}" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect_sources.py"'
         self.assert_denied(self.run_hook([shutil.which("sh"), "-c"], old, GIS_PLUGIN_PYTHON=sys.executable))
+
+
+@unittest.skipUnless(git_bash(), "no Git Bash here")
+class GitBash(Fixture):
+    """Keeps the real HOME, so a startup file that gets in the way shows up here and not only in the doctor."""
+
+    def test_protects_with_override(self):
+        self.assert_denied(self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=sys.executable))
+
+    def test_override_path_with_chinese_and_space(self):
+        interpreter = fake_interpreter(self.tmp / "我的 解释器" / "python", self.marker)
+        self.assert_denied(self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(interpreter)))
+        self.assertTrue(self.marker.exists())
+
+    def test_missing_interpreter_fails_visibly(self):
+        done = self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(self.tmp / "nope"))
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual(done.stdout, b"")
 
 
 @unittest.skipUnless(powershells(), "no PowerShell here")
