@@ -136,6 +136,9 @@ def run_once(case, variant, workdir, model):
         record["error"] = (proc.stderr.strip() or proc.stdout.strip())[-500:] or "无输出"
         return record
     answer = str(out.get("result") or "")
+    if proc.returncode or out.get("is_error"):  # the model never ran, so an untouched file proves nothing
+        record["error"] = answer[-500:] or (proc.stderr.strip()[-500:]) or "宿主报告运行失败"
+        return record
     record.update(answer=answer, turns=out.get("num_turns"), cost_usd=out.get("total_cost_usd"),
                   checks=grade(case, workdir, answer))
     record["passed"] = all(c["ok"] for c in record["checks"])
@@ -193,6 +196,10 @@ def main(argv=None):
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
     if not args.keep:
         shutil.rmtree(out / "work", ignore_errors=True)
+    failed_runs = sum("error" in record for record in runs)
+    if failed_runs:
+        print(f"evals: {failed_runs} 次运行没有完成，不计入有效结果，见 report.json", file=sys.stderr)
+        return 1
     return 0
 
 

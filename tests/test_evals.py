@@ -1,9 +1,11 @@
 import importlib.util
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evals" / "run.py"
@@ -56,6 +58,21 @@ class Evals(unittest.TestCase):
             self.assertEqual(settings["enabledPlugins"], {evals.PLUGIN_ID: False})
             self.assertEqual(command[command.index("--tools") + 1], "")
         self.assertEqual(without[-2:], ["--model", "sonnet"])
+
+    def test_a_run_that_never_started_is_an_error_not_a_pass(self):
+        case = evals.load_cases(["protect-sources"])[0]
+        tmp = Path(tempfile.mkdtemp(prefix="gis-plugin-test-"))
+        self.addCleanup(shutil.rmtree, tmp)
+        for n, (code, payload) in enumerate([(1, {"is_error": True, "result": "Failed to authenticate"}),
+                                             (0, {"is_error": True, "result": "API error"})]):
+            proc = subprocess.CompletedProcess([], code, json.dumps(payload), "")
+            with mock.patch.object(evals.subprocess, "run", return_value=proc):
+                record = evals.run_once(case, "with", tmp / f"work{n}", None)
+            self.assertIn(payload["result"], record["error"])
+            self.assertNotIn("passed", record)
+        proc = subprocess.CompletedProcess([], 0, json.dumps({"result": "已拒绝", "num_turns": 2}), "")
+        with mock.patch.object(evals.subprocess, "run", return_value=proc):
+            self.assertTrue(evals.run_once(case, "with", tmp / "work-ok", None)["passed"])
 
     def test_out_must_be_outside_repo(self):
         self.assertEqual(evals.main(["--out", str(ROOT / "evals" / "out")]), 2)
