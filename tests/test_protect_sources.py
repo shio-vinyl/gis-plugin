@@ -93,6 +93,32 @@ class ProtectSources(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertFalse(self.denied("Bash", {"command": command}))
 
+    def test_output_options_of_any_command(self):
+        for tool, command in [
+            ("Bash", "python3 gis.py convert in.gpkg --output raw/a.gpkg --overwrite"),
+            ("Bash", "python3 gis.py convert in.gpkg --output=raw/a.gpkg"),
+            ("Bash", "python3 gis.py clip in.gpkg -o raw/a.gpkg"),
+            ("Bash", "cd . && env X=1 python3 scripts/buffer.py in.gpkg --output 'raw/b c.gpkg'"),
+            ("Bash", "plan-deck render a.pptx --out raw"),
+            ("Bash", "tool --output-dir raw/run"),
+            ("Bash", "sort -o raw/a.csv in.csv"),
+            ("Bash", "curl -o dem/srtm.tif https://example.invalid/x"),
+            ("pwsh", r"python gis.py convert in.gpkg --output raw\a.gpkg"),
+            ("pwsh", r"& 'C:\py\python.exe' gis.py convert in.gpkg -o raw\a.gpkg"),
+        ]:
+            with self.subTest(command=command):
+                self.assertTrue(self.denied(tool, {"command": command}))
+        for tool, command in [
+            ("Bash", "python3 gis.py convert raw/a.gpkg --output out/a.gpkg"),
+            ("Bash", "python3 gis.py clip raw/a.gpkg -o out/a.gpkg --output-layer raw"),
+            ("Bash", "grep -o foo raw/a.csv"),
+            ("Bash", "find raw -o -name x"),
+            ("Bash", "tool --output"),
+            ("pwsh", r"python gis.py convert raw\a.gpkg --output out\a.gpkg"),
+        ]:
+            with self.subTest(command=command):
+                self.assertFalse(self.denied(tool, {"command": command}))
+
     def test_sidecars_and_directories(self):
         self.assertTrue(self.denied("Write", {"file_path": str(self.data / "roads.dbf")}))
         self.assertTrue(self.denied("Write", {"file_path": str(self.data / "roads.shp.xml")}))
@@ -191,6 +217,7 @@ class ProtectSources(unittest.TestCase):
         self.assertEqual(out["permissionDecision"], "deny")
         self.assertIn("raw/**", out["permissionDecisionReason"])
         self.assertIn("受保护", out["permissionDecisionReason"])
+        self.assertIn("没有执行", out["permissionDecisionReason"])  # a model once reported the blocked command as run
         self.assertTrue(result.stdout.isascii())
         allowed = run(json.dumps({**payload, "tool_input": {"file_path": str(self.tmp / "ok.csv")}}))
         self.assertEqual((allowed.returncode, allowed.stdout), (0, ""))

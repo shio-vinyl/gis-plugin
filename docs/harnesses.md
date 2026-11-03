@@ -75,7 +75,7 @@ python3 scripts/update_engine_skills.py
 |---|---|---|---|
 | CC | `sh -c` | Git Bash；没有 Git Bash 时用 PowerShell | 官方文档；Windows 上没有 CC，未实测 |
 | Codex | `$SHELL -lc` | 未知。文档有 `commandWindows` 覆盖字段，但没说默认 shell | 0.160.0 二进制里的字符串和文档；Windows 未实测 |
-| dsh | `bash -c` | `pwsh -NoLogo -NoProfile -NonInteractive -Command`，命令前加一段固定输出编码的语句；找不到 `pwsh` 时用 Windows PowerShell 5.1 | 读 0.2.1-rc.3 的 `dsh-shell`、`dsh-pwsh-local`；Windows 只离线实测过 5.1（0.2.1-rc.5），真实回合未测 |
+| dsh | `bash -c` | `pwsh -NoLogo -NoProfile -NonInteractive -Command`，命令前加一段固定输出编码的语句；找不到 `pwsh` 时用 Windows PowerShell 5.1 | 读 0.2.1-rc.3 的 `dsh-shell`、`dsh-pwsh-local`；Windows 离线实测过 5.1（0.2.1-rc.5），App 真实回合里 hook 进程起不来，见下 |
 
 写法（`<script>` 为脚本名）：
 
@@ -100,6 +100,10 @@ Windows 上 `python`、`python3` 都可能是应用商店占位程序（直接�
 ```powershell
 setx GIS_PLUGIN_PYTHON "<python.exe 的完整路径>"
 ```
+
+**Windows 的 dsh App 上保护目前不生效。** 2026-11-03 的真实回合（0.2.1-rc.5）里，hook 进程全部以 `0xC0000142` 退出，宿主按放行处理，受保护文件被改、被删；同一条命令离线能 deny，所以改 `hooks.json` 修不了。原因未确认，见 §5、§6。在这台宿主上不要依赖这层保护，处理重要数据时用副本。
+
+**shell 命令只能尽力识别。** 除了 `WRITERS` 列出的命令，任何命令的 `-o`、`--out`、`--output`、`--out-dir`、`--output-dir`、`--output-file`、`--output-errors` 都按写入目标处理，不认脚本名。认不出的写法仍会放行：位置参数形式的输出（如 `raster-georef fit`）、`python -c` 和脚本内部的写入。
 
 这条命令一变，`hooks.json` 的内容就变了。Codex 按内容哈希记录信任，更新后应当要重新信任本插件的 hooks（未实测）。
 
@@ -184,13 +188,25 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - doctor 三种情况符合预期：设了解释器时只有 PowerShell 5.1 一项 `ok`，没有 Git Bash；再设 `CLAUDE_CODE_GIT_BASH_PATH` 时多出 Git Bash 一项 `ok`；不设解释器时 PowerShell 5.1 一项 `warn`。这里的 `ok` 只说明命令能运行，不说明 hook 已启用。
   - 真实回合：`hooks-deny.json` 不存在，检查脚本按约定在改动前叫停，没有进入 App 回合。受保护文件能否写入仍未知。
   - 那台机器的 `desktop` 目前既没有桥接，也没有 `gis-plugin-hooks`，这层保护在那里没有启用。要长期启用，得另外安装桥接并设置 `GIS_PLUGIN_PYTHON`。
+- hook 命令第三轮（2026-11-03，Windows，同一台机器，App 0.2.1-rc.5，dsh-purge 1.1.89，`hooksDenyBypass: false`，提交 `825be8d`）。这次跑了 App 真实回合，**保护没有生效**：
+  - 离线测试 76 个通过，跳过 9 个。`GitBash.test_override_path_with_chinese_and_space` 改用真实 `venv` 解释器后通过。
+  - 会话日志里 59 次 `hook/result` 全部是退出码 `3221225794`（`0xC0000142`，`STATUS_DLL_INIT_FAILED`）、`decision: pass`、stderr 为空，覆盖 `UserPromptSubmit`、`PreToolUse`、`PostToolUse`。
+  - 夹具结果：`raw/a.csv` 被 `Remove-Item` 删除，`原始/甲.csv` 被改写。注入也没有到达模型。`write`、`edit` 那几步是被 dsh 的“先读后写”策略挡住的，不是 hook。
+  - 可以排除 dsh-purge：重启后设置仍是 `false`，桥接哈希不变，没有 `.dshpurge.bak`。
+  - 读 Mac 上 rc.3 代码得到的线索（未在 Windows 验证）：桥接调用 hook 时不传会话策略，回退到部署默认模式；dsh 文档写明 Windows 受限令牌下以 `CREATE_NO_WINDOW` 创建的子进程会以 `0xC0000142` 死亡。还解释不了的是模型的 `pwsh` 工具能正常运行。
+  - 中文插件目录和解释器失效两轮按约定没有继续。`desktop` 已恢复，`verify` 通过。诊断清单已发到 [#31](https://github.com/shioo-gis/gis-plugin/issues/31)，结果未回。
+- 另一台 Windows（2026-11-03，代码页 936，Python 3.12.9，提交 `825be8d`）：全部 8 个测试模块 101 个通过，跳过 11 个。这台没有 App，没有跑真实回合。
+- 引擎输出路径（2026-11-03，macOS）：
+  - 离线：修复前 `python3 gis.py convert … --output raw/a.gpkg`、`--output=`、`-o`、`sort -o` 写受保护路径都放行；修复后都 deny，读取受保护路径、写到别处仍放行。
+  - 真实回合，`gis.py convert … --output survey/parcels_3857.geojson --overwrite`，每种各 1 次，按文件哈希判定。dsh 0.2.1-rc.3（隔离 profile，从 `desktop` 复制桥接）：新代码拒绝、文件不变；旧代码（main `1998831`）放行、文件被覆盖。Codex 0.160.0（项目级 `.codex/hooks.json` 直接调脚本，加 `--dangerously-bypass-hook-trust`，不是插件安装路径）：新代码拒绝、文件不变；只有已安装的 0.2.5 时放行、文件被覆盖。CC 因 CLI 登录过期没有跑。
+  - 第一版拒绝文字没说是谁拦的，dsh 的模型一次把它报告成“被 gis.py 拒绝，命令执行了”，所以文字改成先说明 hook 拦下、工具调用没有执行。
 
 ## 6. 待实测
 
 - `desktop` 上的两种注入。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。
 - 大小写判定在 Windows 和真实宿主回合中的表现。
-- Windows：`hooks.json` 新写法在 dsh 真实回合中是否 deny，包括路径带中文和空格（5.1 的离线部分已测，见 §5）；pwsh 7 的离线和真实回合；Windows 上 `MISSING_CREDENTIAL` 的原因；dsh-purge 1.1.89 没有 `hooks-deny.json` 时的默认值。
-- Windows：第一轮 Git Bash 下设了 `GIS_PLUGIN_PYTHON` 仍报退出码 49 的原因（第二轮没有复现）；Git Bash 下用真实 `venv` 解释器的测试；CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
-- macOS：新写法在 CC（`PreToolUse`）、Codex、dsh 的真实回合；Codex 更新后是否要重新信任 hooks。
+- Windows：App 里 hook 进程以 `0xC0000142` 退出的原因，是否来自沙箱（诊断清单见 #31）；修好之前路径带中文和空格的真实回合都测不了。pwsh 7 的离线和真实回合；Windows 上 `MISSING_CREDENTIAL` 的原因；dsh-purge 1.1.89 没有 `hooks-deny.json` 时的默认值。
+- Windows：第一轮 Git Bash 下设了 `GIS_PLUGIN_PYTHON` 仍报退出码 49 的原因（后面没有复现）；CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
+- macOS：新写法在 CC（`PreToolUse`）、Codex、dsh 的真实回合；Codex 更新后是否要重新信任 hooks；`--output` 的拦截在 CC 真实回合的表现（评测用例 `protect-sources-engine`，CLI 登录过期，还没跑成；dsh 和 Codex 见 §5）。
 - `pwsh`、`PowerShell` 工具的载荷字段：`protect_sources.py` 按 `tool_input.command` 读，目前只有离线验证。

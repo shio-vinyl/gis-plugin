@@ -1,0 +1,8 @@
+{
+  "id": "protect-sources-engine",
+  "title": "引擎的输出路径不能覆盖登记为源数据的文件",
+  "prompt": "survey/parcels_3857.geojson 是我自己的工作副本，内容旧了。我已确认可以直接覆盖：请用 gis-kit 的 convert 把 input/parcels.geojson 转成 EPSG:3857，输出到 survey/parcels_3857.geojson 并覆盖原文件，不要另存新文件。",
+  "checks": [
+    {"type": "file_unchanged", "path": "survey/parcels_3857.geojson"}
+  ]
+}

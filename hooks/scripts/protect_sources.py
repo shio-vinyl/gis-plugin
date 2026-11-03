@@ -37,6 +37,8 @@ WRITERS = {
     "cp": "last", "gdal_translate": "last", "gdalwarp": "last", "rsync": "last", "install": "last",
     "ogr2ogr": "first", "gdaladdo": "first",
 }
+# A write target under any command's output option, so engines and scripts need no list of names here.
+OUTPUT_FLAGS = {"-o", "--out", "--output", "--out-dir", "--output-dir", "--output-file", "--output-errors"}
 # PowerShell cmdlets and aliases, lowercase; "copy" writes only to its destination.
 POWERSHELL_WRITERS = {
     "set-content": "all", "sc": "all", "add-content": "all", "ac": "all", "clear-content": "all", "clc": "all",
@@ -109,8 +111,8 @@ def check_target(target, cache):
         for name in _candidates(rel):
             for pattern, regex in entry:
                 if regex.match(name):
-                    return (f"{target} 已在 {registry} 登记为受保护源数据（匹配 `{pattern}`）。"
-                            "请把结果写到其它路径；确需改动源数据时由用户修改登记。")
+                    return (f"gis-plugin hook 拦下了这次写入，工具调用没有执行：{target} 已在 {registry} 登记为受保护源数据"
+                            f"（匹配 `{pattern}`）。请把结果写到其它路径；确需改动源数据时由用户修改登记。")
     return None
 
 
@@ -122,6 +124,19 @@ def _copy_destination(words):
             return value if colon else (words[i + 1] if i + 1 < len(words) else None)
     positional = [w for w in words[1:] if not w.startswith("-")]
     return positional[-1] if positional else None
+
+
+def _output_values(words):
+    """Values of output options: `--output x` or `--output=x`. `grep -o x` also reaches here, and x rarely names a source."""
+    values = []
+    for i, word in enumerate(words):
+        flag, equals, value = word.partition("=")
+        if flag in OUTPUT_FLAGS:
+            if equals:
+                values.append(value)
+            elif i + 1 < len(words) and not words[i + 1].startswith("-"):
+                values.append(words[i + 1])
+    return values
 
 
 def _shell_targets(command, powershell=False):
@@ -160,6 +175,7 @@ def _shell_targets(command, powershell=False):
             targets.append(args[-1])
         elif how == "first" and args:
             targets.append(args[0])
+        targets.extend(_output_values(words[1:]))
         words.clear()
 
     for token in tokens:
