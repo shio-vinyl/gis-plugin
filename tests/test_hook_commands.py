@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import venv
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,16 @@ def fake_interpreter(path, marker):
         path.write_text(f'#!/bin/sh\necho ran > "{marker}"\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
     return path
+
+
+def venv_interpreter(env_dir, marker):
+    """A real interpreter at `env_dir` that writes where it started from to `marker`.
+
+    For Git Bash on Windows, which cuts a `.cmd` path at its space and so cannot use fake_interpreter there."""
+    venv.create(env_dir, with_pip=False)
+    (next(env_dir.rglob("site-packages")) / "sitecustomize.py").write_text(
+        f"import sys\nwith open({str(marker)!r}, 'w', encoding='utf-8') as out:\n    out.write(sys.prefix)\n", encoding="utf-8")
+    return env_dir / "Scripts" / "python.exe" if os.name == "nt" else env_dir / "bin" / "python"
 
 
 class Fixture(unittest.TestCase):
@@ -159,9 +170,11 @@ class GitBash(Fixture):
         self.assert_denied(self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=sys.executable))
 
     def test_override_path_with_chinese_and_space(self):
-        interpreter = fake_interpreter(self.tmp / "我的 解释器" / "python", self.marker)
+        env_dir = self.tmp / "我的 解释器"
+        interpreter = venv_interpreter(env_dir, self.marker)
+        self.assertTrue(interpreter.is_file(), f"venv made no {interpreter}")
         self.assert_denied(self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(interpreter)))
-        self.assertTrue(self.marker.exists())
+        self.assertTrue(os.path.samefile(self.marker.read_text(encoding="utf-8"), env_dir))
 
     def test_missing_interpreter_fails_visibly(self):
         done = self.run_hook([git_bash(), "-c"], COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(self.tmp / "nope"))
