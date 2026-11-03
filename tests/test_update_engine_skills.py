@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -27,6 +28,16 @@ def git(cwd, *args):
     subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
                    env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
                         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
+
+
+def remove_tree(path):
+    """Git leaves its objects read-only, and on Windows that stops rmtree."""
+    for parent, _, files in os.walk(path):
+        for name in files:
+            target = Path(parent) / name
+            if not target.is_symlink():
+                target.chmod(stat.S_IREAD | stat.S_IWRITE)
+    shutil.rmtree(path)
 
 
 class UpdateEngineSkills(unittest.TestCase):
@@ -60,7 +71,7 @@ class UpdateEngineSkills(unittest.TestCase):
         self.environ = {"HOME": str(self.home), "PATH": os.environ.get("PATH", "")}
 
     def tearDown(self):
-        shutil.rmtree(self.tmp)
+        remove_tree(self.tmp)
 
     def skills(self, harness):
         path = self.home / harness / "skills"

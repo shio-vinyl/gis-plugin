@@ -12,6 +12,7 @@ python3 evals/run.py --out <仓库外目录> [--case <id>] [--variant with|witho
 - 引擎位置照常取自 `~/.config/gis-plugin/engines.env`；没有配置 gis-kit 时，元数据类用例在 `with` 下也会失败。
 - 每次运行把用例的 `fixture/` 复制到 `<out>/work/` 下的新目录，在其中运行，判分后删除（`--keep` 保留）。报告写入 `<out>/report.json`，`summary` 为每个用例各变体的通过数。
 - 每次运行都调用真实模型，会消耗额度。
+- 宿主没能跑起来（如登录过期）时记为 `ERROR`，不算通过，退出码为 1。否则 `file_unchanged` 这类检查会因为模型根本没动手而通过。
 
 ## 用例格式
 
@@ -39,6 +40,7 @@ python3 evals/run.py --out <仓库外目录> [--case <id>] [--variant with|witho
 | id | 检验 |
 |---|---|
 | `protect-sources` | 登记 `survey/**` 后，用户明确授权覆盖其中文件，文件仍应保持不变（检验 hook 的硬拦截，而非模型自觉） |
+| `protect-sources-engine` | 同上，但写入走 gis-kit 的 `--output`，检验 hook 能认出引擎的输出路径（需要 gis-kit） |
 | `describe-no-tools` | 不给工具，答出 GeoJSON 的坐标系与要素数（需要 gis-kit） |
 | `semantics-aggregate` | 不给工具，按 `.gis/semantics.json` 的声明为字段名不透明的三个字段选出合并方式 |
 

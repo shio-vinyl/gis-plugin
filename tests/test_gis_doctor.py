@@ -4,6 +4,7 @@ import os
 import plistlib
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -150,6 +151,16 @@ def git(cwd, *args):
                         "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"})
 
 
+def remove_tree(path):
+    """Git leaves its objects read-only, and on Windows that stops rmtree."""
+    for parent, _, files in os.walk(path):
+        for name in files:
+            target = Path(parent) / name
+            if not target.is_symlink():
+                target.chmod(stat.S_IREAD | stat.S_IWRITE)
+    shutil.rmtree(path)
+
+
 class InstalledSkills(unittest.TestCase):
     """Installed engine skills: links and copies in step say nothing; stale copies warn and list files."""
 
@@ -178,7 +189,7 @@ class InstalledSkills(unittest.TestCase):
         }
 
     def tearDown(self):
-        shutil.rmtree(self.tmp)
+        remove_tree(self.tmp)
 
     def install(self, harness, skill):
         path = self.home / harness / "skills" / skill
@@ -388,6 +399,96 @@ class DshHooks(unittest.TestCase):
             self.assertEqual(doctor.dsh_app_version(), "9.9.9")
         with mock.patch.object(doctor, "APP_DIRS", (self.home / "missing",)):
             self.assertIsNone(doctor.dsh_app_version())
+
+
+class HookCommands(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="gis-plugin-test-"))
+        (self.tmp / ".claude").mkdir()  # so that Git Bash is probed on Windows too
+        self.env = {**os.environ, "HOME": str(self.tmp), "GIS_PLUGIN_PYTHON": sys.executable}
+        self.env.pop("SHELL", None)
+        self.env.pop("CLAUDE_CONFIG_DIR", None)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_real_command_is_denied_in_every_shell(self):
+        results = doctor.check_hook_commands(self.env)
+        self.assertTrue(results)
+        for item in results:
+            self.assertEqual(item["status"], "ok", item)
+
+    def test_login_shell_follows_shell_variable(self):
+        labels = [label for label, _ in doctor.hook_shells({**self.env, "SHELL": "/bin/zsh"}, windows=False)]
+        self.assertIn("zsh -lc，Codex", labels)
+
+    def test_missing_interpreter_is_reported_without_failing_the_run(self):
+        report = doctor.run({**self.env, "GIS_PLUGIN_PYTHON": str(self.tmp / "nope"), "GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"})
+        self.assertTrue(report["hook_commands"])
+        for item in report["hook_commands"]:
+            self.assertEqual(item["status"], "warn", item)
+            self.assertIn("受保护文件照样能写", item["message"])
+        text = doctor.render_text(report)
+        self.assertIn("GIS_PLUGIN_PYTHON", text)
+        self.assertIn("docs/harnesses.md", text)
+
+    def hooks_file(self, command):
+        path = self.tmp / "hooks.json"
+        path.write_text(json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"command": command}]}]}}), encoding="utf-8")
+        return mock.patch.object(doctor, "HOOKS_FILE", path)
+
+    @unittest.skipIf(os.name == "nt", "fake hook is a POSIX command")
+    def test_silent_success_is_not_ok(self):
+        with self.hooks_file("exit 0"), mock.patch.object(doctor, "hook_shells", return_value=[("sh", ["/bin/sh", "-c"])]):
+            [item] = doctor.check_hook_commands(self.env)
+        self.assertEqual(item["status"], "warn")
+        self.assertIn("没有拒绝", item["message"])
+
+    @unittest.skipIf(os.name == "nt", "fake hook is a POSIX command")
+    def test_failure_keeps_the_end_of_stderr(self):
+        noise = "x" * (doctor.STDERR_MAX_CHARS * 2)
+        with self.hooks_file(f"echo {noise} >&2; echo real-cause >&2; exit 3"), \
+                mock.patch.object(doctor, "hook_shells", return_value=[("sh", ["/bin/sh", "-c"])]):
+            [item] = doctor.check_hook_commands(self.env)
+        self.assertEqual(item["status"], "warn")
+        self.assertIn("退出码 3", item["message"])
+        self.assertTrue(item["stderr"].endswith("real-cause"))
+
+    def test_unreadable_hooks_file_is_unknown(self):
+        with mock.patch.object(doctor, "HOOKS_FILE", self.tmp / "none.json"):
+            [item] = doctor.check_hook_commands(self.env)
+        self.assertEqual(item["status"], "unknown")
+
+    def test_windows_shells_follow_dsh_resolution(self):
+        program_files, system_root = r"C:\PF", r"C:\Windows"
+        env = {"ProgramFiles": program_files, "SystemRoot": system_root, "HOME": str(self.tmp)}
+        pwsh = r"C:\PF\PowerShell\7\pwsh.exe"
+        legacy = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+        git_bash = r"C:\PF\Git\bin\bash.exe"
+        with mock.patch.object(doctor.os.path, "isfile", side_effect=lambda p: p in (pwsh, legacy, git_bash)):
+            shells = doctor.hook_shells(env, windows=True)
+        self.assertEqual([argv[0] for _, argv in shells], [pwsh, legacy, git_bash])
+        self.assertEqual(shells[0][1][1:], ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"])
+        with mock.patch.object(doctor.os.path, "isfile", side_effect=lambda p: p == legacy), \
+                mock.patch.object(doctor.shutil, "which", return_value=None):
+            self.assertEqual([argv[0] for _, argv in doctor.hook_shells(env, windows=True)], [legacy])
+
+    def test_git_bash_counts_only_where_cc_is(self):
+        git_bash = r"C:\PF\Git\bin\bash.exe"
+        no_cc = self.tmp / "no-cc"
+        no_cc.mkdir()
+
+        def shells(**env):
+            with mock.patch.object(doctor.os.path, "isfile", side_effect=lambda p: p == git_bash), \
+                    mock.patch.object(doctor.shutil, "which", return_value=None):
+                found = doctor.hook_shells({"ProgramFiles": r"C:\PF", "HOME": str(no_cc), **env}, windows=True)
+            return [argv[0] for _, argv in found]
+
+        self.assertEqual(shells(), [])
+        self.assertEqual(shells(HOME=str(self.tmp)), [git_bash])
+        self.assertEqual(shells(CLAUDE_CONFIG_DIR=str(self.tmp / ".claude")), [git_bash])
+        self.assertEqual(shells(CLAUDE_CONFIG_DIR=str(self.tmp / "none")), [])
+        self.assertEqual(shells(CLAUDE_CODE_GIT_BASH_PATH=git_bash), [git_bash])
 
 
 if __name__ == "__main__":

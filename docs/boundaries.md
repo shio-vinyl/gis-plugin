@@ -33,7 +33,7 @@
 | hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
-| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；对比各宿主已装的引擎 skill 与源仓库，报告落后的副本（不更新） |
+| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；对比各宿主已装的引擎 skill 与源仓库，报告落后的副本（不更新）；在各 shell 里试跑保护 hook，报告它是否能运行 |
 | `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的引擎 skill；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
 | `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
@@ -104,7 +104,7 @@ agent-skills   只保留非 GIS 入口
 ## 8. 已定事项
 
 - **gis-kit 入口不进外壳**（2026-10-08）。gis-kit 已公开，仓库自带的 SKILL.md 是唯一入口，用户照旧独立安装。外壳不含 gis-kit skill，只提供跨引擎能力，并在 `/gis-doctor` 中检查 gis-kit 是否已安装、版本是否兼容。
-- **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`，可用 `GIS_PLUGIN_PYTHON` 覆盖（hooks 已接入，CC 与 Codex 实测）；脚本只用标准库。
+- **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`（PowerShell 下是 `python`），可用 `GIS_PLUGIN_PYTHON` 覆盖（hooks 已接入，CC 与 Codex 实测）；脚本只用标准库。
 - **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
 - **引擎位置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD` 写在共用文件 `~/.config/gis-plugin/engines.env`，doctor 与 hooks 读取；同名环境变量优先。不用各宿主各自的配置（Codex 的 `shell_environment_policy` 不传给 hook），也不用 CC 的 userConfig。hook 解释器为 `GIS_PLUGIN_PYTHON`（只能来自环境变量）。多宿主适配见 [harnesses.md](harnesses.md)。
 - **元数据卡片由 gis-kit 产出**（2026-10-08）。原定 gis-view；改为最基础、最常安装的 gis-kit，使注入 hook 在任何场景都可用。外壳仍不读数据，经 `GIS_KIT_CMD describe` 获取。
