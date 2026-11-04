@@ -105,7 +105,7 @@ setx GIS_PLUGIN_PYTHON "<python.exe 的完整路径>"
 
 **shell 命令只能尽力识别。** 除了 `WRITERS` 列出的命令，任何命令的 `-o`、`--out`、`--output`、`--out-dir`、`--output-dir`、`--output-file`、`--output-errors` 都按写入目标处理，不认脚本名。认不出的写法仍会放行：位置参数形式的输出（如 `raster-georef fit`）、`python -c` 和脚本内部的写入。
 
-这条命令一变，`hooks.json` 的内容就变了。Codex 按内容哈希记录信任，更新后应当要重新信任本插件的 hooks（未实测）。
+这条命令一变，`hooks.json` 的内容就变了。Codex 按内容哈希记录信任，**`hooks.json` 变了之后要重新信任，否则 hook 不运行，保护和注入都会失效，比更新前还弱**，而且 `codex exec` 不会报错（0.160.0 实测）。到交互式 `codex` 里审核并信任本插件的 hooks。
 
 **版本号与更新**：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json` 的 `version` 保持一致（测试检查）。版本号相同时 CC 的 `claude plugin update` 视为已是最新、不会刷新安装副本（2026-10-10 实测），因此改动进入安装副本且影响行为（skills、hooks、清单）时随同一提交提版本：1.0 之前，删除或不兼容（如移除 skill、改变读取的约定版本）提 minor，其余提 patch；只改文档、测试、evals 不提。推送后更新各宿主：
 
@@ -114,6 +114,8 @@ claude plugin marketplace update gis-plugin
 claude plugin update gis-plugin@gis-plugin
 codex plugin add gis-plugin@gis-plugin
 ```
+
+CC 要重启才用新版本。Codex 在 `hooks.json` 变了时要重新信任，见上。
 
 dsh 的 skill 软链与桥接配置直接指向本仓库，本仓库更新后无需更新；App 升级后要重装同版本桥接，见下。
 
@@ -200,6 +202,10 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - 离线：修复前 `python3 gis.py convert … --output raw/a.gpkg`、`--output=`、`-o`、`sort -o` 写受保护路径都放行；修复后都 deny，读取受保护路径、写到别处仍放行。
   - 真实回合，`gis.py convert … --output survey/parcels_3857.geojson --overwrite`，每种各 1 次，按文件哈希判定。dsh 0.2.1-rc.3（隔离 profile，从 `desktop` 复制桥接）：新代码拒绝、文件不变；旧代码（main `1998831`）放行、文件被覆盖。Codex 0.160.0（项目级 `.codex/hooks.json` 直接调脚本，加 `--dangerously-bypass-hook-trust`，不是插件安装路径）：新代码拒绝、文件不变；只有已安装的 0.2.5 时放行、文件被覆盖。CC 因 CLI 登录过期没有跑。
   - 第一版拒绝文字没说是谁拦的，dsh 的模型一次把它报告成“被 gis.py 拒绝，命令执行了”，所以文字改成先说明 hook 拦下、工具调用没有执行。
+- 更新到已安装的 0.2.7 之后（2026-11-04，macOS）：
+  - Codex 0.160.0，插件安装路径，不加绕过信任的参数。重新信任前：写入放行、文件被覆盖，没有任何提示。用户在交互式 `codex` 里重新信任后：同一命令被 hook 拒绝，文件不变，模型转述了拒绝原文。配置里变化的只有 `hooks.state` 的哈希。
+  - CC 重启后，在 Desktop 的 Code 会话里由 Bash 工具执行同样的写入：被 `PreToolUse` 拒绝，文件不变，显示的是新的拒绝文字。这走的是 `Bash` 工具的 hook，不是评测 `claude -p`；评测因 CLI 登录过期没有跑。
+  - dsh `desktop` 没有在这次更新后实测。
 
 ## 6. 待实测
 
@@ -208,5 +214,5 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
 - 大小写判定在 Windows 和真实宿主回合中的表现。
 - Windows：App 里 hook 进程以 `0xC0000142` 退出的原因，是否来自沙箱（诊断清单见 #31）；修好之前路径带中文和空格的真实回合都测不了。pwsh 7 的离线和真实回合；Windows 上 `MISSING_CREDENTIAL` 的原因；dsh-purge 1.1.89 没有 `hooks-deny.json` 时的默认值。
 - Windows：第一轮 Git Bash 下设了 `GIS_PLUGIN_PYTHON` 仍报退出码 49 的原因（后面没有复现）；CC（Git Bash 和 PowerShell 两种情况）、Codex 用什么 shell，命令能否运行；Codex 是否需要 `commandWindows`。
-- macOS：新写法在 CC（`PreToolUse`）、Codex、dsh 的真实回合；Codex 更新后是否要重新信任 hooks；`--output` 的拦截在 CC 真实回合的表现（评测用例 `protect-sources-engine`，CLI 登录过期，还没跑成；dsh 和 Codex 见 §5）。
+- macOS：新写法在 dsh `desktop` 的真实回合（隔离 profile、CC、Codex 见 §5）；评测用例 `protect-sources-engine` 的 `claude -p` 运行（CLI 登录过期，还没跑成）。
 - `pwsh`、`PowerShell` 工具的载荷字段：`protect_sources.py` 按 `tool_input.command` 读，目前只有离线验证。
