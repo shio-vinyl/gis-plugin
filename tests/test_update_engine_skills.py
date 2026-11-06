@@ -141,6 +141,38 @@ class UpdateEngineSkills(unittest.TestCase):
         self.assertIn("需要", item["message"])
         self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
 
+    def test_series_members_follow_the_same_rules(self):
+        deck = self.tmp / "src" / "plan-deck"
+        deck.mkdir(parents=True)
+        (deck / "SKILL.md").write_text("---\nname: plan-deck\n---\n", encoding="utf-8")
+        git(deck, "init", "-q", "-b", "main")
+        git(deck, "add", ".")
+        git(deck, "commit", "-q", "-m", "one")
+        with (self.home / ".config" / "gis-plugin" / "engines.env").open("a", encoding="utf-8") as handle:
+            handle.write(f'GIS_PLAN_DECK_REPO="{deck}"\n')
+        (self.skills(".claude") / "plan-deck").symlink_to(deck)
+        clone = self.skills(".codex") / "plan-deck"
+        git(self.tmp, "clone", "-q", str(deck), str(clone))
+        (deck / "NEW.md").write_text("", encoding="utf-8")
+        git(deck, "add", ".")
+        git(deck, "commit", "-q", "-m", "two")
+        plain = self.skills(".dsh") / "plan-diagram"  # a copied directory, not a clone
+        plain.mkdir()
+        (plain / "SKILL.md").write_text("", encoding="utf-8")
+        (plain / "refs").mkdir()
+        dry = updater.run(self.environ, dry_run=True)
+        self.assertIn("落后上游 1 个提交", self.result(dry, "plan-deck", "Codex")["message"])
+        self.assertFalse((clone / "NEW.md").exists())
+        results = updater.run(self.environ)
+        self.assertEqual(self.result(results, "plan-deck", "CC")["status"], "skip")
+        self.assertTrue((clone / "NEW.md").exists())
+        self.assertEqual(self.result(results, "house-style", "CC")["message"], "未安装")
+        item = self.result(results, "plan-diagram", "dsh")
+        self.assertEqual(item["status"], "error")
+        self.assertIn("复制的目录", item["message"])
+        self.assertEqual({r["skill"] for r in results},
+                         {"gis-kit", "gis-composer", "gis-view", "plan-deck", "chart-forms", "plan-diagram", "house-style"})
+
     def test_entry_line_missing_is_an_error(self):
         (self.composer / "SKILL.md").write_text("---\nname: gis-composer\n---\n改过的说明\n", encoding="utf-8")
         target = self.codex_entry()

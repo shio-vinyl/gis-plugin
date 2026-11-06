@@ -122,6 +122,43 @@ class FakeEngines(unittest.TestCase):
         newer = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={"class-scheme": {"write": [2]}})}
         self.assertEqual(doctor.check_contracts([newer, composer])[0]["status"], "error")
 
+    def test_contract_table_against_capabilities(self):
+        table = self.tmp / "README.md"
+        table.write_text(
+            "说明\n\n| 约定 | 用途 | 产出方 | 读取方 | 状态 |\n|---|---|---|---|---|\n"
+            "| describe | 卡片 | gis-kit（`gis.py describe`） | 外壳 hooks（gis-kit、gis-view 尚未读取） | 草案 |\n"
+            "| map-style | 样式 | gis-composer（已发布）；gis-view（临时样式） | gis-kit；gis-composer | 草案 |\n"
+            "| project | 项目 | gis-composer（`project init`；gis-kit 只发布到 `inputs/`） | gis-composer；Agent | 草案 |\n"
+            "| resolved-theme | 主题 | gis-composer（`theme resolve`） | plan-deck | 草案 |\n"
+            "| selection | 选择集 | gis-view | gis-kit | 暂缓：无产出方 |\n"
+            "\n| 其它表 | x |\n|---|---|\n| gis-kit | y |\n", encoding="utf-8")
+        kit = {"engine": "gis-kit", "capabilities": caps(engine="gis-kit", contracts={
+            "describe": {"write": [1]}, "map-style": {"read": [1]}, "project": {"write": [1]}, "cad-convert": {"write": [1]}})}
+        view = {"engine": "gis-view", "capabilities": caps(contracts={})}
+        composer = {"engine": "gis-composer", "status": "error"}  # did not answer: left out
+        found = {item["contract"]: item for item in doctor.check_contract_table([kit, view, composer], table)}
+        self.assertEqual(set(found), {"map-style", "project"})
+        self.assertEqual(found["map-style"]["missing"], ["gis-view 写"])
+        self.assertEqual(found["project"]["unlisted"], ["gis-kit 写"])  # the note in brackets does not list it
+        self.assertNotIn("cad-convert", found)
+        self.assertNotIn("selection", found)
+        text = doctor.render_text({"python": "3", "engines": [], "contract_table": list(found.values())})
+        self.assertIn("约定表与 capabilities（map-style）：表里有、capabilities 没声明：gis-view 写", text)
+        composer = {"engine": "gis-composer", "capabilities": caps(engine="gis-composer", contracts={})}
+        found = {item["contract"]: item for item in doctor.check_contract_table([composer], table)}
+        self.assertEqual(found["resolved-theme"]["missing"], ["gis-composer 写"])
+        self.assertEqual(found["map-style"]["missing"], ["gis-composer 写", "gis-composer 读"])
+        self.assertEqual(doctor.check_contract_table([kit], self.tmp / "none.md")[0]["status"], "unknown")
+
+    def test_contract_table_of_this_repository(self):
+        table = doctor.contract_table(doctor.CONTRACTS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(table["class-scheme"], {"write": {"gis-kit"}, "read": {"gis-composer"}})
+        self.assertEqual(table["resolved-theme"], {"write": {"gis-composer"}, "read": set()})
+        self.assertEqual(table["project"], {"write": {"gis-composer"}, "read": {"gis-composer"}})
+        self.assertEqual(table["admin-chain"]["read"], set())
+        self.assertNotIn("view", table)
+        self.assertNotIn("scene-draft", table)
+
     def test_engine_mismatch(self):
         result = self.check(self.engine("mismatch", json.dumps(caps(engine="gis-kit"))))
         self.assertEqual(result["status"], "error")
@@ -208,7 +245,30 @@ class InstalledSkills(unittest.TestCase):
         shutil.copytree(self.kit, self.install(".claude", "gis-kit"), ignore=shutil.ignore_patterns("notes.tmp"))
         (self.install(".claude", "gis-kit") / "extra.txt").write_text("", encoding="utf-8")
         item = self.skills()[("gis-kit", "CC")]
+        self.assertEqual((item["kind"], item["status"], item["behind"]), ("clone", "ok", 0), item)
+
+    def test_plain_copy_is_compared_file_by_file(self):
+        shutil.copytree(self.kit, self.install(".claude", "gis-kit"), ignore=shutil.ignore_patterns(".git", "notes.tmp"))
+        item = self.skills()[("gis-kit", "CC")]
         self.assertEqual((item["kind"], item["status"]), ("copy", "ok"), item)
+        self.assertNotIn("behind", item)
+
+    def test_clone_behind_its_source_counts_commits(self):
+        clone = self.install(".claude", "gis-kit")
+        git(self.tmp, "clone", "-q", str(self.kit), str(clone))
+        for n in (2, 3):
+            (self.kit / f"new{n}.md").write_text("", encoding="utf-8")
+            git(self.kit, "add", ".")
+            git(self.kit, "commit", "-q", "-m", str(n))
+        item = self.skills()[("gis-kit", "CC")]
+        self.assertEqual((item["kind"], item["status"], item["behind"]), ("clone", "warn", 2), item)
+        self.assertIn("落后 2 个提交", item["message"])
+        self.assertIn("new2.md", item["missing"])
+        # A clone whose HEAD the source does not have: no count, the files still say it.
+        git(clone, "commit", "-q", "--allow-empty", "-m", "local")
+        item = self.skills()[("gis-kit", "CC")]
+        self.assertIsNone(item["behind"])
+        self.assertEqual(item["status"], "warn")
 
     def test_stale_copy_warns_with_files(self):
         copy = self.install(".claude", "gis-kit")
@@ -216,7 +276,7 @@ class InstalledSkills(unittest.TestCase):
         (copy / "scripts" / "package.py").unlink()
         (copy / "scripts" / "gis.py").write_text("print('v0')\n", encoding="utf-8")
         item = self.skills()[("gis-kit", "CC")]
-        self.assertEqual((item["kind"], item["status"]), ("copy", "warn"))
+        self.assertEqual((item["kind"], item["status"]), ("clone", "warn"))
         self.assertEqual(item["missing"], ["scripts/package.py"])
         self.assertEqual(item["different"], ["scripts/gis.py"])
         text = doctor.render_text({"python": "3", "engines": [], "skills": [item]})
@@ -240,6 +300,58 @@ class InstalledSkills(unittest.TestCase):
         report = doctor.run(self.environ)
         self.assertEqual([(s["skill"], s["harness"]) for s in report["skills"]], [("gis-kit", "dsh")])
         self.assertNotIn("skill gis-kit", doctor.render_text(report))
+
+    def member(self, name, git_repo=True):
+        repo = self.tmp / "src" / name
+        repo.mkdir(parents=True)
+        (repo / "SKILL.md").write_text(f"---\nname: {name}\n---\n", encoding="utf-8")
+        (repo / "notes.md").write_text("v1\n", encoding="utf-8")
+        if git_repo:
+            git(repo, "init", "-q", "-b", "main")
+            git(repo, "add", ".")
+            git(repo, "commit", "-q", "-m", "one")
+        return repo
+
+    def test_series_members_are_checked_like_engines(self):
+        deck = self.member("plan-deck")
+        self.environ["GIS_PLAN_DECK_REPO"] = str(deck)
+        self.install(".claude", "plan-deck").symlink_to(deck)
+        clone = self.install(".codex", "plan-deck")
+        git(self.tmp, "clone", "-q", str(deck), str(clone))
+        (deck / "notes.md").write_text("v2\n", encoding="utf-8")
+        git(deck, "commit", "-q", "-am", "two")
+        skills = self.skills()
+        self.assertEqual(skills[("plan-deck", "CC")]["kind"], "link")
+        self.assertEqual((skills[("plan-deck", "Codex")]["status"], skills[("plan-deck", "Codex")]["behind"]), ("warn", 1))
+        report = doctor.run(self.environ)
+        text = doctor.render_text(report)
+        self.assertIn("    plan-deck：CC 软链、Codex clone", text)
+        self.assertIn("    都没装：gis-kit、gis-view、gis-composer、chart-forms、plan-diagram、house-style", text)
+        self.assertIn("skill plan-deck（Codex", text)
+        self.assertEqual(report["skill_sources"], [])
+
+    def test_member_without_a_source_says_which_variable(self):
+        shutil.copytree(self.member("house-style"), self.install(".claude", "house-style"))
+        item = self.skills()[("house-style", "CC")]
+        self.assertEqual(item["status"], "unknown")
+        self.assertIn("GIS_HOUSE_STYLE_REPO", item["message"])
+
+    def test_member_source_that_is_not_a_git_repository(self):
+        # plan-diagram's skill sits in a plain directory for now.
+        diagram = self.member("plan-diagram", git_repo=False)
+        self.environ["GIS_PLAN_DIAGRAM_REPO"] = str(diagram)
+        self.install(".dsh", "plan-diagram").symlink_to(diagram)
+        shutil.copytree(diagram, self.install(".claude", "plan-diagram"))
+        skills = self.skills()
+        self.assertEqual(skills[("plan-diagram", "dsh")]["status"], "ok")
+        self.assertEqual((skills[("plan-diagram", "CC")]["kind"], skills[("plan-diagram", "CC")]["status"]), ("copy", "unknown"))
+        self.assertIn("不是 git 仓库", skills[("plan-diagram", "CC")]["message"])
+        sources = doctor.check_sources(doctor.engine_settings(self.environ))
+        self.assertEqual([(s["skill"], s["status"]) for s in sources], [("plan-diagram", "warn")])
+        self.assertIn("不是 git 仓库", sources[0]["message"])
+        self.environ["GIS_PLAN_DIAGRAM_REPO"] = str(self.tmp / "nowhere")
+        self.assertIn("没有 name: plan-diagram 的 SKILL.md",
+                      doctor.check_sources(doctor.engine_settings(self.environ))[0]["message"])
 
     def test_unknown_source_is_reported(self):
         shutil.copytree(self.kit, self.install(".claude", "gis-kit"))

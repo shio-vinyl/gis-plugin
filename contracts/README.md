@@ -2,6 +2,8 @@
 
 引擎之间、引擎与外壳之间交换的文件格式。只涉及外壳的格式（capabilities、sources、semantics）和有多个产出方的格式（map-style）在本目录写 JSON Schema（`<name>.schema.json`）和本页中的说明；引擎产出的格式由产出方维护，本页只写用途、产出方、读取方、版本和跨引擎衔接要点，字段以引擎文档为准。均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。
 
+`gis-doctor` 把下表的产出方、读取方和各引擎 `capabilities --json` 的 `contracts` 对照，不一致时报告（见[版本规则](#版本规则)第 4 条）。为此“产出方”“读取方”两栏按 `；` 分项，以引擎名开头的一项算该引擎的写或读；括号里的说明、外壳、用户、Agent 和其它 skill 不参与对照。状态为“暂缓”“取消”的行不对照。
+
 | 约定 | 用途 | 产出方 | 读取方 | 状态 |
 |---|---|---|---|---|
 | capabilities | 引擎自报版本与能力，供 doctor 和 hooks 判断可用性 | 各引擎（`capabilities --json` 子命令） | 外壳 | 草案，已有 Schema，见下文 |
@@ -13,8 +15,9 @@
 | display-vector | 按一张图的视角概括的底图矢量，避免小比例尺下的碎岛与描边 | gis-kit（`display-vector.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | tile-snapshot | 在线瓦片的本地快照，使渲染不联网、署名与许可可追溯 | gis-kit（`snapshot.py`） | gis-composer | 草案，说明由 gis-kit 维护，见下文 |
 | admin-chain | 场地的各级行政区，供区位图逐级放大 | gis-kit（`admin-chain.py`） | Agent（写 gis-composer 的地图清单；Composer 只读其中的 GeoJSON） | 草案，说明由 gis-kit 维护，见下文 |
-| project | 共用项目目录：分析成果、地图清单、主题与运行记录各放在哪里、归谁写 | gis-composer（`project init`）；gis-kit 发布到 `inputs/<分析名>/` | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
+| project | 共用项目目录：分析成果、地图清单、主题与运行记录各放在哪里、归谁写 | gis-composer（`project init`；gis-kit 只按路径规则发布到 `inputs/<分析名>/`，不读写清单） | gis-composer；Agent | 草案，说明由 gis-composer 维护，见下文 |
 | map-legend | 每张图旁的图例数据，汇报页据此画可编辑图例、按尺寸放图 | gis-composer（每次出图写 `<图>.legend.json`） | Agent；出页脚本 | 草案，说明由 gis-composer 维护，见下文 |
+| resolved-theme | 项目地图主题解析 `extends` 和记号之后的颜色、常量与字体，供页面和其它工具取用，不必自己解析主题链 | gis-composer（`theme resolve`，只读查询，打印到 stdout） | plan-deck（`style.json` 的 `mapTheme`） | 草案，说明由 gis-composer 维护，见下文 |
 | map-style | 一张图的图层、数据引用、绘制顺序和最终样式，与平台无关；在引擎之间、以及与 QGIS、ArcGIS 等平台格式之间转样式 | gis-composer（已发布的地图）；gis-view（临时样式）；gis-kit（从平台格式转回） | gis-kit（转成平台格式）；gis-view；gis-composer | 草案：Schema 先行，gis-composer 导出实现时定稿，见下文 |
 | view | 一组图层的查看描述：图层、对照关系、状态着色、范围 | gis-kit 等 | gis-view | 暂缓：无产出方，见下文 |
 | selection | 选择集：source、layer、revision、fids | gis-view | gis-kit | 暂缓：无产出方，见下文 |
@@ -33,7 +36,7 @@
 1. **兼容变更不升版本**：只有“新增可选字段”算兼容。读取方必须忽略不认识的字段，Schema 不禁止额外字段。
 2. **不兼容变更才把 `schema_version` 加 1**：删除字段、改名、改含义、新增必填字段。
 3. **读取方遇到不认识的版本时拒绝并说明**，不猜测。
-4. **协商**：各引擎在 capabilities 的 `contracts` 中声明读写的版本；`gis-doctor` 把每个写入方与每个读取方（含外壳自身，见下）配对，找不到共同版本时报错并指出是哪两方。外壳目前读取 `describe`、`semantics`、`sources` 各 v1（`gis_doctor.py` 的 `SHELL_READS`）。
+4. **协商**：各引擎在 capabilities 的 `contracts` 中声明读写的版本；`gis-doctor` 把每个写入方与每个读取方（含外壳自身，见下）配对，找不到共同版本时报错并指出是哪两方。外壳目前读取 `describe`、`semantics`、`sources` 各 v1（`gis_doctor.py` 的 `SHELL_READS`）。doctor 还把本页总表登记的读写关系和各引擎的声明对照：表里有、引擎没声明，或者引擎声明了表里登记的约定、表里却没列它，都报告出来，不影响退出码；引擎声明了而本页没有登记的约定（引擎自己的格式）不报。
 5. **过渡**：升级时产出方至少在一个版本周期内仍能按旧版本写出（例如 `--schema-version N`），读取方同时读新旧两版。外壳不做格式迁移，迁移由产出该格式的引擎负责。
 6. **capabilities 本身只做兼容变更**，作为协商起点保持 v1。
 
@@ -152,7 +155,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - **引擎仍可独立使用**：gis-kit 不依赖项目存在，`--output` 可以是任意新目录；只有交给 Composer 时才发布到 `inputs/`。
 - **共享大数据不进项目**：底图、DEM、geo-assets 在项目清单里声明名称，各设备各自配置路径，见 gis-composer 文档。
 - **按页面尺寸出图**：图要放进汇报页时，出版参数写在项目清单与地图清单里（gis-composer 维护），放置尺寸随 [map-legend](#map-legend) 交给页面。
-- **plan-deck**：读 gis-composer 项目的发布版（`releases/vN/`）放图、按 [map-legend](#map-legend) 画可编辑图例，页面配色经 `theme resolve` 从项目主题取，和图纸同色系；自己的 `style.json`、`style.md` 放在汇报稿旁，用 `mapTheme` 指向 composer 项目，不写入项目目录。细节见 plan-deck 的 `docs/architecture.md`。
+- **plan-deck**：读 gis-composer 项目的发布版（`releases/vN/`）放图、按 [map-legend](#map-legend) 画可编辑图例，页面配色经 `theme resolve`（[resolved-theme](#resolved-theme)）从项目主题取，和图纸同色系；自己的 `style.json`、`style.md` 放在汇报稿旁，用 `mapTheme` 指向 composer 项目，不写入项目目录。细节见 plan-deck 的 `docs/architecture.md`。
 - **版本配对**：目前只有 gis-composer 读写清单，gis-kit 只遵守 `inputs/` 的路径规则、不读写清单，因此没有跨引擎的 capabilities 配对。等另一个引擎开始读写清单时，再由双方在 `capabilities` 中声明 `project` 的版本。
 
 ## map-legend
@@ -162,6 +165,15 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 - 每张渲染出的图旁写一份 `<图>.legend.json`，记录渲染时按主题解析出的图例（最终色值）和放置尺寸。
 - 用法：图要放进汇报页、由页面画可编辑图例时，地图清单关掉 PNG 里的图例，出页脚本读这份文件画图例、按尺寸放图，不手抄颜色和标签。
 - `rerun` 把它当作交付物逐字节比对。读取方是 Agent、项目里的出页脚本和 plan-deck 运行时（只从发布版读）；plan-deck 不在本仓库的引擎配对里，因此没有 capabilities 配对。
+
+## resolved-theme
+
+产出方是 gis-composer 的 `theme resolve [<theme>]`，`schemaVersion: 1`、`kind: "resolved-theme"`（composer 自己的字段名，不是本页的 `contract`、`schema_version`）。字段见其 [主题文档](https://github.com/shioo-gis/gis-composer/blob/main/docs/themes.md#theme-inheritance-and-tokens)，本仓库不保留副本。
+
+- **只读查询**：打印主题按 `extends` 和记号解析后的结果，不写文件，同样的输入得到同样的 JSON。默认解析项目主题，也可以给内置主题名或项目里的 `.theme.json`。
+- **系列里唯一的跨工具调用**：别的约定都靠文件交接，这一个是 plan-deck 加载 `style.json` 时调 composer 的命令行（`mapTheme` 指向 composer 项目；命令取自 `GIS_COMPOSER_CMD`，没有时读 `engines.env`）。命令不可用或主题出错时 plan-deck 报错，不回退到旧值。
+- **读取方用到的**：`palette`、`classes`（强调色、类别配色）、`constants` 里的 `label*Size`（核对图面字号）、`typography.fonts[]` 的 name 表（认主题字体的别名），以及 `chain` 里项目主题的 `sha256`，和发布版 `release.json` 的 `inputs` 对比，判断图是不是用当前主题出的。
+- plan-deck 不在本仓库的引擎配对里，没有 capabilities 配对；composer 在 capabilities 里声明 `write` 之前，doctor 的约定表对照会报出来。
 
 ## map-style
 

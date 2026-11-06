@@ -26,9 +26,9 @@
 
 ## 2. 设计决定
 
-1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。这些变量只供 doctor 与 hooks 使用；各引擎的 skill 入口在其仓库内直接调用本仓库 CLI，不读它们。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
+1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。这些变量只供 doctor 与 hooks 使用；各引擎的 skill 入口在其仓库内直接调用本仓库 CLI，不读它们。系列里没有引擎命令的成员（plan-deck、chart-forms、plan-diagram、house-style）用 `GIS_PLAN_DECK_REPO`、`GIS_CHART_FORMS_REPO`、`GIS_PLAN_DIAGRAM_REPO`、`GIS_HOUSE_STYLE_REPO` 指向含 `SKILL.md` 的目录，只供 doctor 和更新脚本对比、重建副本；不设时软链照常报告，副本报“未对比”。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
-3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`PostToolUse` 的 `additionalContext`（元数据注入）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
+3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`UserPromptSubmit` 与 `PostToolUse` 的 `additionalContext`（元数据注入；项目样式只用 `UserPromptSubmit`）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。“每个会话一次”靠载荷里的 `session_id` 记在 `~/.cache/gis-plugin/`（`GIS_PLUGIN_STATE` 可改），CC 实测、dsh 读桥接代码都带这个字段，Codex 未核对；载荷没有 `session_id` 时项目样式每条消息都注入，宁可重复也不漏。dsh 的 `UserPromptSubmit` 挂在每一步之前，不去重就会每步重复。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
 4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|apply_patch|write|edit|bash|powershell|pwsh)$`，命令同时能被 POSIX shell 和 PowerShell 解析，写法和取舍见 §4“hook 命令”；解释器覆盖在 CC 与 Codex 实测生效（2026-10，当时还是只支持 POSIX shell 的写法）。
 5. **dsh 接入**：skill 目录软链进 `<dshHome>/skills`（web profile 中宿主层 `skill-filesystem` 已禁用，由 agent preset 发现）；hooks 用 profile 补丁挂 `dsh-hooks-claude-code`，见 §4。地图标签页等界面适配以后放 `adapters/dsh`。
 
@@ -56,16 +56,16 @@ hooks/scripts/                    标准库 Python
 
 各引擎的 skill 不随外壳安装：把 gis-kit、gis-view、gis-composer 的仓库目录分别软链或复制为 `~/.claude/skills/<name>`、`~/.codex/skills/<name>`、`~/.dsh/skills/<name>`，各自独立可用（gis-kit 另见其 README）。
 
-更新已装的引擎 skill（gis-kit、gis-composer、gis-view）：
+更新已装的系列 skill（引擎 gis-kit、gis-composer、gis-view，以及 plan-deck、chart-forms、plan-diagram、house-style）：
 
 ```bash
 python3 scripts/update_engine_skills.py --dry-run
 python3 scripts/update_engine_skills.py
 ```
 
-脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。源仓库由 `engines.env` 的引擎命令定位。未安装的只报告，不安装。要不要更新，先看 `gis-doctor`：它把各宿主里的副本与源仓库逐文件比对，落后时列出缺少或不同的文件。
+脚本逐个检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效），按安装方式处理：软链随源仓库，不处理；git clone 在工作区干净时 `pull --ff-only`；Codex 的单文件入口按源仓库 `SKILL.md` 重建，只把“本 skill 的目录即运行时仓库”一行改写为源仓库路径，找不到该行时报错且不写入。复制来的普通目录（不是 git clone）报错，不更新。源仓库由 `engines.env` 的引擎命令定位，其它成员由 `GIS_*_REPO` 定位（见 §2 第 1 条）。未安装的只报告，不安装。要不要更新，先看 `gis-doctor`：它把各宿主里的副本与源仓库逐文件比对，落后时列出缺少或不同的文件；git clone 还报告比本机源仓库落后几个提交（不联网，只读源仓库）。更新脚本的 `--dry-run` 会 `fetch`，报的是比 clone 自己的上游落后几个，两个数可能不同（比如源仓库有没推送的提交）。
 
-引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."` 每行一个），无需在各宿主配置中重复；同名环境变量优先。Windows 上命令里的反斜杠按路径分隔符处理，`C:\tools\gis.py` 不用改写。
+引擎位置三家共用 `~/.config/gis-plugin/engines.env`（`GIS_*_CMD="..."`、`GIS_*_REPO="..."` 每行一个），无需在各宿主配置中重复；`GIS_*_REPO` 的值是一个路径，不拆分；同名环境变量优先。Windows 上命令里的反斜杠按路径分隔符处理，`C:\tools\gis.py` 不用改写。
 
 值按命令行拆分，所以路径带空格时只给这个路径加引号，比如 `GIS_KIT_CMD=python "C:\my tools\gis.py"`，或者每段都加引号。不要把整条命令放进一对引号再让里面的路径带空格：`GIS_KIT_CMD="python C:\my tools\gis.py"` 拆不出这个路径。
 
@@ -207,7 +207,14 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - CC 重启后，在 Desktop 的 Code 会话里由 Bash 工具执行同样的写入：被 `PreToolUse` 拒绝，文件不变，显示的是新的拒绝文字。这走的是 `Bash` 工具的 hook，不是评测 `claude -p`；评测因 CLI 登录过期没有跑。
   - dsh `desktop` 没有在这次更新后实测。
 
+- 项目样式 hook（2026-11-06，macOS）：
+  - 离线：`sh`、`bash`、`dash`、`zsh` 及 `-lc` 运行 `hooks.json` 里的新命令，插件目录和项目目录带中文和空格，stdout 是一行 ASCII JSON，同一 `session_id` 第二次无输出。本机没有 PowerShell，PowerShell 用例跳过。
+  - CC 2.1.258：`--plugin-dir` 指向工作区，在项目子目录里 `claude -p`，hook 在 `UserPromptSubmit` 上实际运行，按会话记下了项目根；模型回合因 CLI 登录过期没跑成，模型是否收到未实测。
+  - Codex、dsh 没有跑真实回合。Codex 要绕过 hook 信任或在交互式 `codex` 里重新信任；dsh 读 0.2.1-rc.3 桥接代码，同一组里的多个 hook 各自运行，`additionalContext` 合并后注入，载荷带 `session_id`。
+
 ## 6. 待实测
+
+- 项目样式 hook 在 CC、Codex、dsh 真实回合里，模型是否收到那一行；Codex 在 `hooks.json` 变了之后要重新信任。
 
 - `desktop` 上的两种注入。
 - App 升级后，旧版本桥接的实际表现，以及桌面界面有没有提示。

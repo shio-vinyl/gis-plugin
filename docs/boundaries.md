@@ -30,11 +30,11 @@
 |---|---|
 | 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
 | skills | 只有 `gis-doctor`；各引擎的入口在其仓库根目录的 `SKILL.md`（见 §8） |
-| hooks | 元数据注入、源数据保护；仅 Python 标准库，读数据一律调引擎 CLI |
+| hooks | 元数据注入、源数据保护，以及项目里有 `style/STYLE.md` 时注入一行“样式记在哪里”的事实（只查文件存在，不读内容）；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
-| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；对比各宿主已装的引擎 skill 与源仓库，报告落后的副本（不更新）；在各 shell 里试跑保护 hook，报告它是否能运行 |
-| `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的引擎 skill；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
+| `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；把约定表登记的读写关系与各引擎 capabilities 对照，报告不一致（不改表也不改引擎）；报告系列 skill（三个引擎和 plan-deck、chart-forms、plan-diagram、house-style，固定清单）在各宿主装了哪些、是软链、clone 还是副本、落后多少、哪些没装，以及源目录不是 git 仓库这类问题（不安装、不更新）；在各 shell 里试跑保护 hook，报告它是否能运行 |
+| `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的系列 skill（与 doctor 同一份固定清单）；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
 | `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
 | `adapters/`（以后） | 某个 harness 专用的界面适配（Claude mod、dsh 插件），保持很薄，不含业务逻辑 |
@@ -48,7 +48,7 @@
 | 自动安装、升级依赖的脚本 | 须用户授权；手动运行的 skill 更新脚本只更新已装副本，不在此列 |
 | MCP server 的实现 | 需了解引擎内部协议，放在引擎里作为子命令 |
 | 数据、trace、运行记录、令牌、用户的 semantics 文件 | semantics 文件跟着数据或项目走，外壳只定义格式 |
-| 通用插件注册表、调度框架 | 不建设平台；已知引擎固定列出 |
+| 通用插件注册表、调度框架 | 不建设平台；已知引擎和系列成员固定列出 |
 | 自动回退 | 引擎缺失或不兼容时明确报告 |
 | 大量斜杠命令 | 模型自己会找工具；命令只给人用的少数入口 |
 
@@ -119,6 +119,7 @@ agent-skills   只保留非 GIS 入口
 - **引擎脱离外壳可用**（2026-10-10）。确立 §1 第 5 条，并据此纠正两处：
   - gis-view、gis-composer 的 skill 入口移回各自仓库根目录的 `SKILL.md`，直接调用本仓库 CLI，不再经由外壳的启动脚本与 `engines.env`；推翻 2026-10-08 的迁入决定。代价是安装时每个引擎各装一次。
   - 约定说明改由产出方维护：describe 的 Schema 与字段说明移到公开的 gis-kit（`references/describe.schema.json`），外壳不再保留副本；gis-kit 文档中 gis-plugin 只作为读取方出现。
+- **系列成员与项目样式**（2026-11-06，体系设计第 9 节决定 3、4）。plan-deck、chart-forms、plan-diagram、house-style 进 doctor 和 `update_engine_skills.py` 的固定清单，只报告和更新已装的副本，不安装、不做注册表；源目录用 `engines.env` 的 `GIS_*_REPO` 指定。外壳加一个 hook：项目里有 `style/STYLE.md` 时每个会话注入一行事实，说明样式记在那里。这件事不完全属于 GIS，放在外壳是因为成本小，外部 skill（dataviz、pptx 等）也能看到；样式本身由 house-style 维护，外壳不读不解析。
 
 ## 9. 待定事项
 

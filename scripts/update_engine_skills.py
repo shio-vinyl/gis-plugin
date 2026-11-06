@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update the GIS engine skills installed in each harness (CC, Codex, dsh). Standard library only.
+"""Update the GIS series skills installed in each harness (CC, Codex, dsh). Standard library only.
 
 Each install is handled by how it was made:
 - symlink: follows its source repository; nothing to do here.
@@ -21,6 +21,14 @@ ENGINES = (
     ("gis-kit", "GIS_KIT_CMD"),
     ("gis-composer", "GIS_COMPOSER_CMD"),
     ("gis-view", "GIS_VIEW_CMD"),
+)
+# The other members of the series: skills without an engine command, so the source is a directory of its own.
+MEMBERS = (
+    # (skill, env var with the directory holding its SKILL.md).
+    ("plan-deck", "GIS_PLAN_DECK_REPO"),
+    ("chart-forms", "GIS_CHART_FORMS_REPO"),
+    ("plan-diagram", "GIS_PLAN_DIAGRAM_REPO"),
+    ("house-style", "GIS_HOUSE_STYLE_REPO"),
 )
 # Codex entry files: (line prefix in the source SKILL.md, replacement); {repo} is the source repository.
 # The prefix stops before the punctuation that follows `$R`, so rewording the rest of the sentence does not break it.
@@ -78,13 +86,16 @@ def split_command(command, windows=os.name == "nt"):
     return list(lexer)
 
 
-def source_repo(skill, command):
-    """The directory holding `<skill>`'s SKILL.md, found by walking up from the paths in its engine command."""
+def source_repo(skill, command, path=False):
+    """The directory holding `<skill>`'s SKILL.md, found by walking up from the paths in its engine command
+    (or from `command` itself when it is a single path)."""
     try:
-        argv = split_command(command)
+        argv = [command] if path else split_command(command)
     except ValueError:
         return None
     for token in argv:
+        if not token:
+            continue
         path = Path(token).expanduser()
         if not path.exists():
             continue
@@ -153,14 +164,14 @@ def update_skill(skill, path, repo, dry_run):
         return update_clone(path, dry_run)
     if [p.name for p in path.iterdir()] == ["SKILL.md"]:
         return update_entry(skill, path, repo, dry_run)
-    return "error", "不认识的安装方式（不是软链、git clone 或单个 SKILL.md）"
+    return "error", "复制的目录，不是软链、git clone 或单个 SKILL.md，本脚本不更新；要更新就重新复制，或改成软链"
 
 
 def run(environ, dry_run=False):
     settings = engine_settings(environ)
     results = []
-    for skill, env_var in ENGINES:
-        repo = source_repo(skill, settings.get(env_var, ""))
+    for skill, env_var in ENGINES + MEMBERS:
+        repo = source_repo(skill, settings.get(env_var, ""), path=env_var.endswith("_REPO"))
         for harness, base in skill_dirs(environ):
             status, message = update_skill(skill, base / skill, repo, dry_run)
             results.append({"skill": skill, "harness": harness, "path": str(base / skill),
@@ -169,7 +180,7 @@ def run(environ, dry_run=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="更新各宿主（CC、Codex、dsh）中安装的 GIS 引擎 skill。")
+    parser = argparse.ArgumentParser(description="更新各宿主（CC、Codex、dsh）中安装的 GIS 系列 skill。")
     parser.add_argument("--dry-run", action="store_true", help="只报告要做什么，不改文件")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
