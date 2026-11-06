@@ -60,7 +60,8 @@ class Wording(unittest.TestCase):
             ("坐标未经核实", "免责、口径"),
             ("数据精度有限", "免责、口径"),
             ("二期用地待定", "待定、核查"),
-            ("暂不纳入", "待定、核查"),
+            ("暂不讨论", "待定、核查"),
+            ("范围以批复为准", "免责、口径"),
             ("两组数字不冲突", "解说、自我澄清"),
             ("这不是年度的数字", "解说、自我澄清"),
             ("注：面积为估算", "解说、自我澄清"),
@@ -74,7 +75,8 @@ class Wording(unittest.TestCase):
 
     def test_content_and_attribution_pass(self):
         for line in ["滨江公园 12.5 公顷", "示意图", "该图斑面积 3.2 公顷", "© OpenStreetMap contributors",
-                     "数据来源：自然资源部标准地图服务", "底图来源：天地图", "注重慢行连续", "为准备期预留"]:
+                     "数据来源：自然资源部标准地图服务", "底图来源：天地图", "注重慢行连续", "为准备期预留",
+                     "暂不推荐", "不以申请人自报为准", "以人为本"]:
             with self.subTest(line=line):
                 self.assertIsNone(self.hit(line))
 
