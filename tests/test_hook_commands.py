@@ -16,9 +16,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = json.loads((ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
-COMMANDS = {event: group["hooks"][0]["command"] for event, groups in HOOKS.items() for group in groups}
+COMMANDS = {event: groups[0]["hooks"][0]["command"] for event, groups in HOOKS.items()}  # first group per event
 ALL_COMMANDS = [hook["command"] for groups in HOOKS.values() for group in groups for hook in group["hooks"]]
 STYLE_COMMAND = next(command for command in ALL_COMMANDS if "inject_style.py" in command)
+TEXT_COMMAND = next(command for command in ALL_COMMANDS if "check_artifact_text.py" in command)
 # What dsh-pwsh-local puts in front of every command (dsh 0.2.1-rc.3).
 PREAMBLE = ("[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); "
             "$OutputEncoding = [System.Text.UTF8Encoding]::new($false); ")
@@ -104,6 +105,20 @@ class Fixture(unittest.TestCase):
         self.assertIn(str(self.data), output["additionalContext"])
         done.stdout.decode("ascii")
 
+    def text_payload(self):
+        """A map in the data directory with a disclaimer on it, just written by the Bash tool."""
+        (self.data / "图 甲.svg").write_text('<svg><text x="1" y="2">范围示意，仅供参考</text></svg>', encoding="utf-8")
+        return {"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": {"command": "node draw.js"},
+                "cwd": str(self.data), "session_id": "s-1"}
+
+    def assert_text_blocked(self, done):
+        self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
+        output = json.loads(done.stdout)  # one JSON document: a wrapped line would not parse
+        self.assertEqual(output["decision"], "block")
+        self.assertIn("范围示意，仅供参考", output["reason"])
+        self.assertIn("图 甲.svg", output["reason"])
+        done.stdout.decode("ascii")
+
     def assert_denied(self, done):
         self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
         output = json.loads(done.stdout)["hookSpecificOutput"]  # one JSON document: a wrapped line would not parse
@@ -181,6 +196,13 @@ class PosixShells(Fixture):
                                                      GIS_PLUGIN_STATE=str(state)))
                 again = self.run_hook(argv, STYLE_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable, GIS_PLUGIN_STATE=str(state))
                 self.assertEqual((again.returncode, again.stdout), (0, b""))
+
+    def test_artifact_text_is_blocked(self):
+        payload = self.text_payload()
+        for name, argv in posix_shells():
+            with self.subTest(shell=name):
+                self.assert_text_blocked(self.run_hook(argv, TEXT_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable,
+                                                       GIS_PLUGIN_STATE=str(self.tmp / f"state {name}")))
 
     def test_the_old_form_still_parses_here(self):
         # The contrast PowerShell lacks: POSIX shells accept the bare quoted form too, so only PowerShell tests catch it.
@@ -260,6 +282,13 @@ class PowerShell(Fixture):
             with self.subTest(shell=shell):
                 self.assert_style_said(self.run_pwsh(shell, STYLE_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable,
                                                      GIS_PLUGIN_STATE=str(self.tmp / f"state {Path(shell).name}")))
+
+    def test_artifact_text_is_blocked(self):
+        payload = self.text_payload()
+        for shell in powershells():
+            with self.subTest(shell=shell):
+                self.assert_text_blocked(self.run_pwsh(shell, TEXT_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable,
+                                                       GIS_PLUGIN_STATE=str(self.tmp / f"state {Path(shell).name}")))
 
     def test_injection_commands_run(self):
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "看看 原始/甲.csv", "cwd": str(self.data)}

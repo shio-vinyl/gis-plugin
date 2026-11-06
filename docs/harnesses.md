@@ -28,7 +28,7 @@
 
 1. **引擎位置**（现写在共用文件 `~/.config/gis-plugin/engines.env`，同名环境变量优先）：`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD`（命令行字符串，按 shell 规则拆分；composer 指向 `node <runtime>/src/agent-entry.js`）。这些变量只供 doctor 与 hooks 使用；各引擎的 skill 入口在其仓库内直接调用本仓库 CLI，不读它们。系列里没有引擎命令的成员（plan-deck、chart-forms、plan-diagram、house-style）用 `GIS_PLAN_DECK_REPO`、`GIS_CHART_FORMS_REPO`、`GIS_PLAN_DIAGRAM_REPO`、`GIS_HOUSE_STYLE_REPO` 指向含 `SKILL.md` 的目录，只供 doctor 和更新脚本对比、重建副本；不设时软链照常报告，副本报“未对比”。暂不使用 CC 的 userConfig：它的值进不了模型经 Bash 运行 doctor 的环境，只会造成两套配置。
 2. **doctor 是 skill 自带的标准库脚本**（`skills/gis-doctor/scripts/gis_doctor.py`），三家都通过 skill 或 shell 调用，不依赖斜杠命令。
-3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`UserPromptSubmit` 与 `PostToolUse` 的 `additionalContext`（元数据注入；项目样式只用 `UserPromptSubmit`）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。“每个会话一次”靠载荷里的 `session_id` 记在 `~/.cache/gis-plugin/`（`GIS_PLUGIN_STATE` 可改），CC 实测、dsh 读桥接代码都带这个字段，Codex 未核对；载荷没有 `session_id` 时项目样式每条消息都注入，宁可重复也不漏。dsh 的 `UserPromptSubmit` 挂在每一步之前，不去重就会每步重复。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
+3. **hooks 只用三家共同可用的子集**：`PreToolUse` 的 deny（源数据保护）、`UserPromptSubmit` 与 `PostToolUse` 的 `additionalContext`（元数据注入；项目样式只用 `UserPromptSubmit`）、`PostToolUse` 顶层的 `decision: "block"` 和 `reason`（产物用语检查；CC 按文档、dsh 桥接按代码会把 `reason` 交给模型，Codex 见 §5）。不依赖 `SessionStart` 首轮注入（dsh 中异步执行）与 `updatedInput`（dsh 不支持）。“每个会话一次”靠载荷里的 `session_id` 记在 `~/.cache/gis-plugin/`（`GIS_PLUGIN_STATE` 可改），CC 实测、dsh 读桥接代码都带这个字段，Codex 未核对；载荷没有 `session_id` 时项目样式每条消息都注入，宁可重复也不漏。dsh 的 `UserPromptSubmit` 挂在每一步之前，不去重就会每步重复。deny 用 CC 的 JSON 形式（`hookSpecificOutput.permissionDecision`），CC 与 Codex 实测生效。
 4. **一份 hooks.json、一个脚本**：三家工具名互不冲突，脚本按 tool_name（不区分大小写）识别写入目标，不需要 `--harness` 参数。matcher 为 `^(Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|apply_patch|write|edit|bash|powershell|pwsh)$`，命令同时能被 POSIX shell 和 PowerShell 解析，写法和取舍见 §4“hook 命令”；解释器覆盖在 CC 与 Codex 实测生效（2026-10，当时还是只支持 POSIX shell 的写法）。
 5. **dsh 接入**：skill 目录软链进 `<dshHome>/skills`（web profile 中宿主层 `skill-filesystem` 已禁用，由 agent preset 发现）；hooks 用 profile 补丁挂 `dsh-hooks-claude-code`，见 §4。地图标签页等界面适配以后放 `adapters/dsh`。
 
@@ -212,7 +212,16 @@ dsh-purge 的补丁 30/31 会把桥接里的 `deny` 判断替换成永不命中�
   - CC 2.1.258：`--plugin-dir` 指向工作区，在项目子目录里 `claude -p`，hook 在 `UserPromptSubmit` 上实际运行，按会话记下了项目根；模型回合因 CLI 登录过期没跑成，模型是否收到未实测。
   - Codex、dsh 没有跑真实回合。Codex 要绕过 hook 信任或在交互式 `codex` 里重新信任；dsh 读 0.2.1-rc.3 桥接代码，同一组里的多个 hook 各自运行，`additionalContext` 合并后注入，载荷带 `session_id`。
 
+- 产物用语 hook（2026-11-06，macOS）：
+  - 离线：`sh`、`bash`、`dash`、`zsh` 及 `-lc` 运行 `hooks.json` 里的新命令，插件目录和数据目录带中文和空格，stdout 是一行 ASCII JSON，`decision` 为 `block`。本机没有 PowerShell，PowerShell 用例跳过。
+  - dsh：用真实命令跑出的 stdout 交给 `desktop` profile 里 `dsh-hook-protocol` 0.2.1-rc.3 的 `parseHookOutput`、`mergeHookOutputs`，结果是 `decision: deny`、`reason` 原文完整；桥接代码对 `PostToolUse` 的 `deny` 返回 `kind: "block"`，`reason` 作为工具反馈。没有跑真实回合。
+  - 扫描耗时：在 `~/Projects` 下扫描本身不到 0.1 秒；一次 hook 约 1.2 秒，主要是 pyenv 垫片启动 `python3`（`python3 -c pass` 就要 0.7 秒），其它 hook 一样。
+  - CC：CLI 登录过期（App 内置的 2.1.317 也一样），`claude -p` 没跑成；Desktop 会话不会中途读入新加的项目 hooks，在当前会话里也测不了。
+  - Codex：真实回合要绕过 hook 信任，这次没有跑。
+
 ## 6. 待实测
+
+- 产物用语 hook 在 CC、Codex、dsh 真实回合里，命中时模型是否收到 `reason` 并改掉文件；Codex 要先重新信任 `hooks.json`。
 
 - 项目样式 hook 在 CC、Codex、dsh 真实回合里，模型是否收到那一行；Codex 在 `hooks.json` 变了之后要重新信任。
 
