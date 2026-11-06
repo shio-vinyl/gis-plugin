@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = json.loads((ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
 COMMANDS = {event: group["hooks"][0]["command"] for event, groups in HOOKS.items() for group in groups}
+ALL_COMMANDS = [hook["command"] for groups in HOOKS.values() for group in groups for hook in group["hooks"]]
+STYLE_COMMAND = next(command for command in ALL_COMMANDS if "inject_style.py" in command)
 # What dsh-pwsh-local puts in front of every command (dsh 0.2.1-rc.3).
 PREAMBLE = ("[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); "
             "$OutputEncoding = [System.Text.UTF8Encoding]::new($false); ")
@@ -88,6 +90,20 @@ class Fixture(unittest.TestCase):
         return subprocess.run([*argv, command], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                               capture_output=True, cwd=self.data, env={**self.env, **env}, timeout=120)
 
+    def style_payload(self):
+        """A project with style/STYLE.md; the session works in a subdirectory of it."""
+        (self.data / "style").mkdir()
+        (self.data / "style" / "STYLE.md").write_text("# 样式\n", encoding="utf-8")
+        (self.data / "图").mkdir()
+        return {"hook_event_name": "UserPromptSubmit", "prompt": "出图", "cwd": str(self.data / "图"), "session_id": "s-1"}
+
+    def assert_style_said(self, done):
+        self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
+        output = json.loads(done.stdout)["hookSpecificOutput"]
+        self.assertEqual(output["hookEventName"], "UserPromptSubmit")
+        self.assertIn(str(self.data), output["additionalContext"])
+        done.stdout.decode("ascii")
+
     def assert_denied(self, done):
         self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
         output = json.loads(done.stdout)["hookSpecificOutput"]  # one JSON document: a wrapped line would not parse
@@ -98,8 +114,8 @@ class Fixture(unittest.TestCase):
 
 class Form(unittest.TestCase):
     def test_every_command_has_both_branches(self):
-        for event, command in COMMANDS.items():
-            with self.subTest(event=event):
+        for command in ALL_COMMANDS:
+            with self.subTest(command=command):
                 match = re.fullmatch(
                     r'exec "\$\{GIS_PLUGIN_PYTHON:-python3\}" "(\$\{CLAUDE_PLUGIN_ROOT\}/hooks/scripts/\w+\.py)"; '
                     r"\$p = \$env:GIS_PLUGIN_PYTHON, 'python' -match '\.'; \. \$p\[0\] \"\1\"", command)
@@ -108,12 +124,12 @@ class Form(unittest.TestCase):
 
     def test_powershell_does_not_take_over_stdin(self):
         # Naming $input makes PowerShell read stdin itself and re-encode it, which can corrupt a Chinese path.
-        for command in COMMANDS.values():
+        for command in ALL_COMMANDS:
             self.assertNotIn("$input", command.lower())
 
     def test_powershell_branch_is_valid_in_5_1(self):
         # 5.1 has neither `||`, `&&` nor `??`. They would be a parse error before anything ran.
-        for command in COMMANDS.values():
+        for command in ALL_COMMANDS:
             for token in ("||", "&&", "??"):
                 self.assertNotIn(token, command)
 
@@ -155,6 +171,16 @@ class PosixShells(Fixture):
                 done = self.run_hook(argv, COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(self.tmp / "nope"))
                 self.assertNotEqual(done.returncode, 0)
                 self.assertEqual(done.stdout, b"")
+
+    def test_style_line_reaches_stdout(self):
+        payload = self.style_payload()
+        for name, argv in posix_shells():
+            with self.subTest(shell=name):
+                state = self.tmp / f"state {name}"
+                self.assert_style_said(self.run_hook(argv, STYLE_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable,
+                                                     GIS_PLUGIN_STATE=str(state)))
+                again = self.run_hook(argv, STYLE_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable, GIS_PLUGIN_STATE=str(state))
+                self.assertEqual((again.returncode, again.stdout), (0, b""))
 
     def test_the_old_form_still_parses_here(self):
         # The contrast PowerShell lacks: POSIX shells accept the bare quoted form too, so only PowerShell tests catch it.
@@ -227,6 +253,13 @@ class PowerShell(Fixture):
                 done = self.run_pwsh(shell, COMMANDS["PreToolUse"], GIS_PLUGIN_PYTHON=str(self.tmp / "nope"))
                 self.assertEqual(done.returncode, 1)
                 self.assertEqual(done.stdout, b"")
+
+    def test_style_line_reaches_stdout(self):
+        payload = self.style_payload()
+        for shell in powershells():
+            with self.subTest(shell=shell):
+                self.assert_style_said(self.run_pwsh(shell, STYLE_COMMAND, payload, GIS_PLUGIN_PYTHON=sys.executable,
+                                                     GIS_PLUGIN_STATE=str(self.tmp / f"state {Path(shell).name}")))
 
     def test_injection_commands_run(self):
         payload = {"hook_event_name": "UserPromptSubmit", "prompt": "看看 原始/甲.csv", "cwd": str(self.data)}
