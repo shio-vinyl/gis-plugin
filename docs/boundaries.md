@@ -30,7 +30,7 @@
 |---|---|
 | 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
 | skills | 只有 `gis-doctor`；各引擎的入口在其仓库根目录的 `SKILL.md`（见 §8） |
-| hooks | 元数据注入、源数据保护，以及项目里有 `style/STYLE.md` 时注入一行“样式记在哪里”的事实（只查文件存在，不读内容）；仅 Python 标准库，读数据一律调引擎 CLI |
+| hooks | 元数据注入、源数据保护，项目里有 `style/STYLE.md` 时注入一行“样式记在哪里”的事实（只查文件存在，不读内容），以及产物用语检查（刚写出的 SVG、PPTX、HTML 里有防御、解说、免责用语时回给模型，见 [artifact-text.md](artifact-text.md)）；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
 | `.mcp.json`（以后） | 只做登记，指向引擎自带的 MCP 子命令；目前没有引擎提供，因此尚未添加 |
 | `/gis-doctor` | 逐个询问引擎版本与能力，报告缺什么；把约定表登记的读写关系与各引擎 capabilities 对照，报告不一致（不改表也不改引擎）；报告系列 skill（三个引擎和 plan-deck、chart-forms、plan-diagram、house-style，固定清单）在各宿主装了哪些、是软链、clone 还是副本、落后多少、哪些没装，以及源目录不是 git 仓库这类问题（不安装、不更新）；在各 shell 里试跑保护 hook，报告它是否能运行 |
@@ -120,6 +120,7 @@ agent-skills   只保留非 GIS 入口
   - gis-view、gis-composer 的 skill 入口移回各自仓库根目录的 `SKILL.md`，直接调用本仓库 CLI，不再经由外壳的启动脚本与 `engines.env`；推翻 2026-10-08 的迁入决定。代价是安装时每个引擎各装一次。
   - 约定说明改由产出方维护：describe 的 Schema 与字段说明移到公开的 gis-kit（`references/describe.schema.json`），外壳不再保留副本；gis-kit 文档中 gis-plugin 只作为读取方出现。
 - **系列成员与项目样式**（2026-11-06，体系设计第 9 节决定 3、4）。plan-deck、chart-forms、plan-diagram、house-style 进 doctor 和 `update_engine_skills.py` 的固定清单，只报告和更新已装的副本，不安装、不做注册表；源目录用 `engines.env` 的 `GIS_*_REPO` 指定。外壳加一个 hook：项目里有 `style/STYLE.md` 时每个会话注入一行事实，说明样式记在那里。这件事不完全属于 GIS，放在外壳是因为成本小，外部 skill（dataviz、pptx 等）也能看到；样式本身由 house-style 维护，外壳不读不解析。
+- **产物用语**（2026-11-06）。系列产物里不出现防御性、解说型和免责型文字，依据 plan-deck 的“页面绝不出现”。清单只有一份，在 `hooks/scripts/artifact_text.json`，**各工具自己的检查（plan-deck、plan-diagram、gis-composer）以这份清单为参照**；外壳的 hook 在 `PostToolUse` 兜底，管所有 skill 和宿主，不设绕过开关。产物文件不是 GIS 数据，读 SVG、PPTX、HTML 里的文字用标准库，不算第二份引擎。说明见 [artifact-text.md](artifact-text.md)。
 
 ## 9. 待定事项
 

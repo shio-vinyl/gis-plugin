@@ -21,6 +21,7 @@ GIS 系列（gis-kit、gis-view、gis-composer 与本外壳）的共同出发点
 | 注意 NoData、数据类型 | skill 里写“检查 nodata 与 dtype” | hook 读到数据时注入元数据卡片，模型直接看到事实 |
 | 分类数据用最近邻重采样 | skill 里列重采样规则 | 引擎根据字段语义选择，或默认值本身正确 |
 | 不改源数据 | skill 里写“不要覆盖原文件” | hook 拦截对登记源数据的写入 |
+| 产物里不写免责、解说的话 | skill 里写“不要加免责声明” | 出图工具最后一步检查，hook 对刚写出的 SVG、PPTX、HTML 兜底，命中时回给模型（[artifact-text.md](artifact-text.md)） |
 
 ## 3. 原则
 
