@@ -1,6 +1,6 @@
 # 约定清单
 
-引擎之间、引擎与外壳之间交换的文件格式。只涉及外壳的格式（capabilities、sources、semantics）和有多个产出方的格式（map-style）在本目录写 JSON Schema（`<name>.schema.json`）和本页中的说明；引擎产出的格式由产出方维护，本页只写用途、产出方、读取方、版本和跨引擎衔接要点，字段以引擎文档为准。均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。
+引擎之间、引擎与外壳之间交换的文件格式。只涉及外壳的格式（capabilities、sources、semantics）和有多个产出方的格式（map-style）在本目录写 JSON Schema（`<name>.schema.json`）和本页中的说明；引擎产出的格式由产出方维护，本页只写用途、产出方、读取方、版本和跨引擎衔接要点，字段以引擎文档为准。均带 `schema_version`。下表为草案，均未定稿；只为已有产出方或读取方实现的格式写 Schema。gis-composer、gis-view 还在私有开发，下文指向它们仓库的链接暂时打不开。
 
 `gis-doctor` 把下表的产出方、读取方和各引擎 `capabilities --json` 的 `contracts` 对照，不一致时报告（见[版本规则](#版本规则)第 4 条）。为此“产出方”“读取方”两栏按 `；` 分项，以引擎名开头的一项算该引擎的写或读；括号里的说明、外壳、用户、Agent 和其它 skill 不参与对照。状态为“暂缓”“取消”的行不对照。
 
@@ -73,7 +73,7 @@ Schema：[capabilities.schema.json](capabilities.schema.json)（`schema_version:
   "engine": "gis-composer",
   "engine_version": "0.1.0",
   "commands": ["render", "inspect", "qa"],
-  "contracts": {"scene-draft": {"read": [1]}},
+  "contracts": {"class-scheme": {"read": [1]}, "display-raster": {"read": [1]}},
   "features": [
     {"name": "maplibre", "available": true},
     {"name": "blender", "available": false, "reason": "Blender executable not found"}
@@ -179,10 +179,10 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，**草案**）。
 
-一份 `map-style` 描述一张图：有哪些图层、各引用什么数据、按什么顺序画、每层长什么样，以及可选的标注位置和图幅范围。它和平台、渲染器无关，不写 MapLibre 表达式、QML 或 CIM。设计讨论见 gis-plugin#16。
+一份 `map-style` 描述一张图：有哪些图层、各引用什么数据、按什么顺序画、每层长什么样，以及可选的标注位置和图幅范围。它和平台、渲染器无关，不写 MapLibre 表达式、QML 或 CIM。设计讨论见 [#16](https://github.com/shioo-gis/gis-plugin/issues/16)。
 
 - **为什么放在这里**：它有多个产出方（gis-composer 写已发布的地图，gis-view 写临时样式，gis-kit 从平台格式转回来），格式说明只写一处，所以由外壳维护。读的一方是 gis-kit（转成 QGIS 等平台格式）、gis-view 和 gis-composer。
-- **草案**：按 boundaries 的规则，约定本该等第一个产出方实现后再写 Schema。这份 Schema 先写，是为了让 composer 导出和 gis-kit 打包能按同一份字段并行开发（boundaries 2026-10-30 的例外）。gis-composer 的导出实现时按实际输出定稿；定稿前各引擎不在 `capabilities` 里登记读写版本，doctor 也不配对。
+- **草案**：按 boundaries 的规则，约定本该等第一个产出方实现后再写 Schema。这份 Schema 先写，是为了让 composer 导出和 gis-kit 打包能按同一份字段并行开发（[boundaries.md](../docs/boundaries.md#8-已定事项) 里记的例外）。gis-composer 的导出实现时按实际输出定稿；定稿前各引擎不在 `capabilities` 里登记读写版本，doctor 也不配对。
 - **分工**：平台格式（QML、`.qgz`，以后 `.lyrx` 等）的读写都归 gis-kit；composer、gis-view 只读写 `map-style`。外壳不读写数据。
 
 ```json
@@ -265,11 +265,11 @@ Schema：[semantics.schema.json](semantics.schema.json)（`schema_version: 1`）
 
 ## 暂缓的约定
 
-view、selection、review 目前没有任何引擎产出（2026-10-10 核对；scene-draft 已取消）：
+view、selection、review 目前没有任何引擎产出（scene-draft 已取消）：
 
 - selection：gis-view 的选择集只在服务进程内存中（`fids`、`revision` 等），不落文件；复制到剪贴板的“观察上下文”不是约定格式，且没有 `revision`。
 - review：gis-view 不写审阅记录；gis-kit 的人工审阅（`raster-annotate.py feedback`）有自己的格式，以 gis-kit 仓库为准。
 - view：没有引擎写出供 gis-view 打开的查看描述；gis-view 的 `session.json` 是其内部文件。
-- scene-draft：已取消（2026-10-30）。gis-view 改为导出 [map-style](#map-style)，可交给 gis-composer 起草，也可交给 gis-kit 打包。
+- scene-draft：已取消。gis-view 改为导出 [map-style](#map-style)，可交给 gis-composer 起草，也可交给 gis-kit 打包。
 
 等第一个产出方实现时，再按其实际字段定 Schema，避免先写出无人实现、随后漂移的格式。

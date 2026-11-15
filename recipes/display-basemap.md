@@ -34,7 +34,6 @@ node "$GIS_COMPOSER_HOME/src/cli.js" --project /absolute/project render maps/sit
   "encodings": [{ "encoding": "focus", "id": "site", "data": "../inputs/site/sites.geojson", "legend": "研究地块" }] }
 ```
 
-（示例在仓库外的项目里实测：写回前后 `inspect` 的 zoom 相同，lint 无告警，出图通过。）
 
 - 单图写在顶层的 `context`；多面板图写在各面板 `composition.context`。各面板视角相同时（如共用 `composition` 的 grid 小多图，inspect 给出的 view 都一样），只生成一个包，写在共用的 `composition.context`。
 - `context.display` 不参与范围推导，写回后视角不变；第 3 步的 `inspect` 报出的 zoom 应与第 1 步相同。
