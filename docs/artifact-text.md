@@ -4,7 +4,7 @@ GIS 系列的产物（地图、结构图、图表、汇报页）里不出现防�
 
 ## 1. 来源
 
-用户为整个系列定的规则（2026-11-06）。依据是 plan-deck 的“页面绝不出现”（`docs/visual-language.md`，决策 16）：免责和口径说明、待定和核查、解说和自我澄清都不是汇报内容。模型写文字时最容易带上这几类话，Codex 比 Claude 更明显，所以靠工具检查，不靠 skill 里的提示。
+这条规则来自 plan-deck（规划汇报稿工具，私有开发）的“页面绝不出现”：免责和口径说明、待定和核查、解说和自我澄清都不是汇报内容，后来推广到整个系列。模型写文字时最容易带上这几类话，所以靠工具检查，不靠 skill 里的提示（见 [philosophy.md](philosophy.md)）。
 
 ## 2. 清单
 
@@ -32,9 +32,9 @@ GIS 系列的产物（地图、结构图、图表、汇报页）里不出现防�
 
 hook 在 `PostToolUse` 运行，工具调用已经执行、文件已经写出，所以它不阻止写入，而是把命中的位置回给模型，让它改掉后重新生成。
 
-- **哪些文件**：`.svg`、`.pptx`、`.html`/`.htm`。`Write`、`Edit`、`MultiEdit`（CC）、`write`、`edit`（dsh）、`apply_patch`（Codex）查写入的文件。shell 命令（`Bash`、`bash`、`PowerShell`、`pwsh`）看不出写了什么，就做两件事：按源数据保护的规则读输出参数和重定向（`-o`、`--output`、`>` 等）；在项目根（向上找 `gis-project.json` 或 `style/STYLE.md`，找不到就用工作目录）下找 15 分钟内改过的产物。扫描跳过点开头的目录、`node_modules`、`venv` 等，深度、条目数和时间都有上限；工作目录是家目录或磁盘根时不扫。扫到的文件同一个会话里每个版本只查一次，改过再查。
+- **哪些文件**：`.svg`、`.pptx`、`.html`/`.htm`。`Write`、`Edit`、`MultiEdit`（CC）、`write`、`edit`（DeepSeek Harness）、`apply_patch`（Codex）查写入的文件。shell 命令（`Bash`、`bash`、`PowerShell`、`pwsh`）看不出写了什么，就做两件事：按源数据保护的规则读输出参数和重定向（`-o`、`--output`、`>` 等）；在项目根（向上找 `gis-project.json` 或 `style/STYLE.md`，找不到就用工作目录）下找 15 分钟内改过的产物。扫描跳过点开头的目录、`node_modules`、`venv` 等，深度、条目数和时间都有上限；工作目录是家目录或磁盘根时不扫。扫到的文件同一个会话里每个版本只查一次，改过再查。
 - **读哪些文字**：SVG 是 `<text>`、`<tspan>`，一个 `<text>` 里的多行也连起来读，连续的单字 `<text>`（竖排标签）连起来读；PPTX 是幻灯片、图表和 SmartArt 里的 `a:t`，同一文本框的各行也连起来读，备注页和隐藏页不查；HTML 是页面上看得见的文字，`<script>`、`<style>`、`<template>` 和注释不查。
-- **命中时**：输出 `{"decision": "block", "reason": ...}`，列出文件、原文、位置、命中的片段和类别，以及上面那句原则和清单位置。没有绕过开关。CC 按文档把 `reason` 交给模型；dsh 桥接把它解析成 `deny`，以工具反馈交给模型（读代码并用桥接的解析模块离线验证）；Codex 0.160.0 的二进制里有“PostToolUse hook blocked the tool result”，未实测。宿主上的实测情况见 [harnesses.md](harnesses.md#5-实测记录2026-10-08)。
+- **命中时**：输出 `{"decision": "block", "reason": ...}`，列出文件、原文、位置、命中的片段和类别，以及上面那句原则和清单位置。没有绕过开关。CC 按文档把 `reason` 交给模型；DeepSeek Harness 桥接把它解析成 `deny`，以工具反馈交给模型（用桥接的解析模块离线验证）；Codex 未实测。各宿主真实回合的情况见 [#43](https://github.com/shioo-gis/gis-plugin/issues/43)。
 - **出错时**：输入读不了、文件不是有效的 PPTX 时不输出，不打断会话。
 
 ## 4. 局限

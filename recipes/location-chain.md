@@ -55,4 +55,4 @@ node "$GIS_COMPOSER_HOME/src/cli.js" --project /absolute/project render maps/sit
 
 ## 不在范围
 
-影像底的场地区位图和影像时间序列，要先定影像来源与授权（见 gis-composer #8 形式 2、3）。
+影像底的场地区位图和影像时间序列：要先定影像来源与授权。

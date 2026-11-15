@@ -52,4 +52,4 @@ python3 evals/run.py --out <仓库外目录> [--case <id>] [--variant with|witho
 | `describe-no-tools` | 3/3 | 0/3：如实回答 unknown |
 | `semantics-aggregate` | 3/3 | 0/3：如实回答 unknown |
 
-早先的 `protect-raw` 用 `raw/` 目录且未声明授权，无外壳时模型 3 次中 2 次自行拒绝改写，有外壳时模型从未尝试写入，测不到 hook；因此改为现用例。
+`protect-sources-engine` 还没有基线。支持 Codex、DeepSeek Harness 和补充用例见 [#4](https://github.com/shioo-gis/gis-plugin/issues/4)。

@@ -5,7 +5,7 @@
 ## 1. 三层结构
 
 ```
- Claude Code / dsh / Codex
+ Claude Code / Codex / DeepSeek Harness
           │  插件格式（skills、hooks、MCP 登记）
  ┌────────▼────────┐
  │   gis-plugin    │  集成层：入口、跨引擎 hooks、约定、诊断、评测
@@ -13,7 +13,7 @@
     │CLI   │CLI  │CLI          ← 外壳与引擎之间唯一的接口
  gis-kit gis-view gis-composer   引擎层：各自仓库、各自环境，互不导入代码
     └──────┴─────┴── 文件 ──┘
-          约定层：源数据（只读）、semantics、view、selection、review、Scene 草稿、gis-kit trace 与状态字段
+          约定层：源数据（只读）、semantics、map-style 等约定文件、gis-kit trace 与状态字段
 ```
 
 规则：
@@ -28,7 +28,7 @@
 
 | 内容 | 说明 |
 |---|---|
-| 各宿主清单 | CC、Codex 插件清单与 dsh 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
+| 各宿主清单 | CC、Codex 插件清单与 DeepSeek Harness 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
 | skills | 只有 `gis-doctor`；各引擎的入口在其仓库根目录的 `SKILL.md`（见 §8） |
 | hooks | 元数据注入、源数据保护，项目里有 `style/STYLE.md` 时注入一行“样式记在哪里”的事实（只查文件存在，不读内容），以及产物用语检查（刚写出的 SVG、PPTX、HTML 里有防御、解说、免责用语时回给模型，见 [artifact-text.md](artifact-text.md)）；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |
@@ -37,7 +37,7 @@
 | `scripts/update_engine_skills.py` | 用户手动运行，更新各宿主里已装的系列 skill（与 doctor 同一份固定清单）；不安装、不碰依赖，见 [harnesses.md](harnesses.md#4-安装与配置) |
 | `evals/` | GIS 任务与判分规则，比较有无外壳的差别，见 [evals/README.md](../evals/README.md) |
 | `tests/` | hooks 等外壳自有代码的测试 |
-| `adapters/`（以后） | 某个 harness 专用的界面适配（Claude mod、dsh 插件），保持很薄，不含业务逻辑 |
+| `adapters/`（以后） | 某个 harness 专用的界面适配（Claude mod、DeepSeek Harness 插件），保持很薄，不含业务逻辑 |
 
 ## 3. 外壳不放什么
 
@@ -62,7 +62,7 @@
 | 产生新数据文件 | 会，结果带状态字段 | 不会；只写查看状态、选择集、审阅记录 | 会（PNG、视频） |
 | 主要使用者 | Agent | 人；Agent 可发显示指令 | Agent 制作，人看结果 |
 | 给 Agent 的元数据描述 | **唯一产出方**（`gis.py describe`；`inspect-data` 保留深入查看） | 不负责（内部为显示自行读取） | 不负责 |
-| 公开状态 | 已公开（`shioo-gis/gis-kit`） | 私有开发 | 私有开发 |
+| 公开状态 | 已公开（[shioo-gis/gis-kit](https://github.com/shioo-gis/gis-kit)） | 私有开发 | 私有开发 |
 
 “读元数据”分两种：引擎**内部**为了工作而读，属于各自实现，不需要统一；**给 Agent 看的描述**（卡片、警告、语义）是一个产品，只能有一个产出方。
 
@@ -93,35 +93,26 @@
 
 ```
 gis-kit        引擎（公开）
-gis-view       引擎 + 本地 App（私有）
-gis-composer   引擎（私有）
-gis-plugin     外壳（本仓库，私有）
-agent-skills   只保留非 GIS 入口
+gis-view       引擎 + 本地 App（私有开发）
+gis-composer   引擎（私有开发）
+gis-plugin     外壳（本仓库）
 ```
 
-入口只能有一份，放在各引擎仓库根目录的 `SKILL.md`，仓库本身即 skill 目录。gis-view 与 gis-composer 的入口曾于 2026-10-08 从 agent-skills 迁入本仓库，2026-10-10 移回各自仓库（见 §8）。
+每个引擎的 skill 入口只有一份，放在该引擎仓库根目录的 `SKILL.md`，仓库本身即 skill 目录；外壳不含引擎的 skill（见 §8）。gis-view、gis-composer 未安装时，doctor 明确报告，外壳其余部分照常可用。
 
 ## 8. 已定事项
 
-- **gis-kit 入口不进外壳**（2026-10-08）。gis-kit 已公开，仓库自带的 SKILL.md 是唯一入口，用户照旧独立安装。外壳不含 gis-kit skill，只提供跨引擎能力，并在 `/gis-doctor` 中检查 gis-kit 是否已安装、版本是否兼容。
-- **hook 与 doctor 使用的 Python**（2026-10-08）。默认用系统 `python3`（PowerShell 下是 `python`），可用 `GIS_PLUGIN_PYTHON` 覆盖（hooks 已接入，CC 与 Codex 实测）；脚本只用标准库。
-- **capabilities 由子命令产出**（2026-10-08）。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
-- **引擎位置**（2026-10-08）。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD` 写在共用文件 `~/.config/gis-plugin/engines.env`，doctor 与 hooks 读取；同名环境变量优先。不用各宿主各自的配置（Codex 的 `shell_environment_policy` 不传给 hook），也不用 CC 的 userConfig。hook 解释器为 `GIS_PLUGIN_PYTHON`（只能来自环境变量）。多宿主适配见 [harnesses.md](harnesses.md)。
-- **元数据卡片由 gis-kit 产出**（2026-10-08）。原定 gis-view；改为最基础、最常安装的 gis-kit，使注入 hook 在任何场景都可用。外壳仍不读数据，经 `GIS_KIT_CMD describe` 获取。
-- **约定版本规则**（2026-10-08）。兼容变更只加可选字段、读取方忽略未知字段；不兼容变更才升 `schema_version`；doctor 依 capabilities 声明配对检查读写版本。细则见 [contracts/README.md](../contracts/README.md#版本规则)。
-- **外壳暂不公开**（2026-10-08）。保持私有开发；以后若随 gis-kit 公开，gis-view、gis-composer 作为可选引擎，未安装时 doctor 明确报告，届时再定是否需要英文文档。
-- **引擎版本号**（2026-10-08）。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
-- **semantics 约定**（2026-10-10）。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
-- **共用项目目录**（2026-10-26）。gis-kit、gis-composer（以后还有 plan-deck）共用 gis-composer 定义的项目根：清单、项目主题、地图清单、`inputs/<分析名>/`、`runs/`；各引擎只写自己那部分，仍可脱离项目独立使用。说明由 gis-composer 维护，本仓库在 [contracts/README.md](../contracts/README.md#project共用项目目录) 索引。
-- **约定只为已实现的一方定 Schema**（2026-10-10）。view、selection、review、scene-draft 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
-- **map-style 先写 Schema**（2026-10-30）。一张图的样式约定 [map-style](../contracts/README.md#map-style) 有多个产出方（gis-composer、gis-view、gis-kit），由外壳维护格式说明和 Schema；为了让 composer 导出与 gis-kit 打包按同一份字段并行开发，Schema 在实现前先写成草案，composer 导出实现时定稿，定稿前不登记 capabilities 读写版本。平台格式（QML、`.qgz`、`.lyrx` 等）的读写都归 gis-kit。scene-draft 随之取消，gis-view 改为导出 map-style。
-
-- **引擎脱离外壳可用**（2026-10-10）。确立 §1 第 5 条，并据此纠正两处：
-  - gis-view、gis-composer 的 skill 入口移回各自仓库根目录的 `SKILL.md`，直接调用本仓库 CLI，不再经由外壳的启动脚本与 `engines.env`；推翻 2026-10-08 的迁入决定。代价是安装时每个引擎各装一次。
-  - 约定说明改由产出方维护：describe 的 Schema 与字段说明移到公开的 gis-kit（`references/describe.schema.json`），外壳不再保留副本；gis-kit 文档中 gis-plugin 只作为读取方出现。
-- **系列成员与项目样式**（2026-11-06，体系设计第 9 节决定 3、4）。plan-deck、chart-forms、plan-diagram、house-style 进 doctor 和 `update_engine_skills.py` 的固定清单，只报告和更新已装的副本，不安装、不做注册表；源目录用 `engines.env` 的 `GIS_*_REPO` 指定。外壳加一个 hook：项目里有 `style/STYLE.md` 时每个会话注入一行事实，说明样式记在那里。这件事不完全属于 GIS，放在外壳是因为成本小，外部 skill（dataviz、pptx 等）也能看到；样式本身由 house-style 维护，外壳不读不解析。
-- **产物用语**（2026-11-06）。系列产物里不出现防御性、解说型和免责型文字，依据 plan-deck 的“页面绝不出现”。清单只有一份，在 `hooks/scripts/artifact_text.json`，**各工具自己的检查（plan-deck、plan-diagram、gis-composer）以这份清单为参照**；外壳的 hook 在 `PostToolUse` 兜底，管所有 skill 和宿主，不设绕过开关。产物文件不是 GIS 数据，读 SVG、PPTX、HTML 里的文字用标准库，不算第二份引擎。说明见 [artifact-text.md](artifact-text.md)。
-
-## 9. 待定事项
-
-暂无。
+- **引擎入口留在各引擎仓库**。gis-kit、gis-view、gis-composer 的 skill 入口是各自仓库根目录的 `SKILL.md`，直接调用各自仓库的 CLI，不经外壳的启动脚本与 `engines.env`；外壳只在 `/gis-doctor` 中检查它们是否已安装、版本是否兼容。代价是安装时每个引擎各装一次，好处是 §1 第 5 条：引擎脱离外壳完整可用。
+- **约定说明由产出方维护**。describe 的 Schema 与字段说明在公开的 gis-kit（`references/describe.schema.json`），外壳不保留副本；gis-kit 文档中 gis-plugin 只作为读取方出现。
+- **hook 与 doctor 使用的 Python**。默认用系统 `python3`（PowerShell 下是 `python`），可用 `GIS_PLUGIN_PYTHON` 覆盖；脚本只用标准库。
+- **capabilities 由子命令产出**。各引擎提供 `<engine> capabilities --json`，外壳只调用该子命令，不读引擎仓库中的静态文件；未提供时 doctor 明确报告。格式见 [contracts/README.md](../contracts/README.md#capabilities)。
+- **引擎位置**。`GIS_KIT_CMD`、`GIS_VIEW_CMD`、`GIS_COMPOSER_CMD` 写在共用文件 `~/.config/gis-plugin/engines.env`，doctor 与 hooks 读取；同名环境变量优先。不用各宿主各自的配置（Codex 的 `shell_environment_policy` 不传给 hook），也不用 CC 的 userConfig。hook 解释器为 `GIS_PLUGIN_PYTHON`（只能来自环境变量）。多宿主适配见 [harnesses.md](harnesses.md)。
+- **元数据卡片由 gis-kit 产出**。gis-kit 是最基础、最常安装的引擎，注入 hook 因此在任何场景都可用。外壳仍不读数据，经 `GIS_KIT_CMD describe` 获取。
+- **约定版本规则**。兼容变更只加可选字段、读取方忽略未知字段；不兼容变更才升 `schema_version`；doctor 依 capabilities 声明配对检查读写版本。细则见 [contracts/README.md](../contracts/README.md#版本规则)。
+- **引擎版本号**。capabilities 的 `engine_version` 是引擎的发布版本；引擎内部的协议或格式版本（如 gis-view 的 `_instance.VERSION`）各自计数，不必一致。gis-view 的 `viewer-entry.json` 只保留 `engine_version`。
+- **semantics 约定**。用户写在数据旁的 `.gis/semantics.json`，`kind` 取值与 gis-kit 的 `quantity_type`/`quantity` 相同；外壳 hook 随元数据卡片转述，不推断。格式见 [contracts/README.md](../contracts/README.md#semantics)。
+- **共用项目目录**。gis-kit、gis-composer 共用 gis-composer 定义的项目根（plan-deck 只读其中的发布版）：清单、项目主题、地图清单、`inputs/<分析名>/`、`runs/`；各引擎只写自己那部分，仍可脱离项目独立使用。说明由 gis-composer 维护，本仓库在 [contracts/README.md](../contracts/README.md#project共用项目目录) 索引。
+- **约定只为已实现的一方定 Schema**。view、selection、review 尚无产出方，暂不写 Schema，等第一个实现时按其字段确定；`.mcp.json` 同理，等引擎提供 MCP 子命令再添加。
+- **map-style 先写 Schema**。一张图的样式约定 [map-style](../contracts/README.md#map-style) 有多个产出方（gis-composer、gis-view、gis-kit），由外壳维护格式说明和 Schema。它是上一条的例外：为了让 composer 导出与 gis-kit 打包按同一份字段并行开发，Schema 在实现前先写成草案，composer 导出实现时定稿，定稿前不登记 capabilities 读写版本。平台格式（QML、`.qgz`、`.lyrx` 等）的读写都归 gis-kit。gis-view 导出 map-style，不另设 Scene 草稿格式。
+- **系列成员与项目样式**。plan-deck、chart-forms、plan-diagram、house-style 进 doctor 和 `update_engine_skills.py` 的固定清单，只报告和更新已装的副本，不安装、不做注册表；源目录用 `engines.env` 的 `GIS_*_REPO` 指定。外壳加一个 hook：项目里有 `style/STYLE.md` 时每个会话注入一行事实，说明样式记在那里。这件事不完全属于 GIS，放在外壳是因为成本小，外部 skill（dataviz、pptx 等）也能看到；样式本身由 house-style 维护，外壳不读不解析。
+- **产物用语**。系列产物里不出现防御性、解说型和免责型文字。清单只有一份，在 `hooks/scripts/artifact_text.json`，**各工具自己的检查（plan-deck、plan-diagram、gis-composer）以这份清单为参照**；外壳的 hook 在 `PostToolUse` 兜底，管所有 skill 和宿主，不设绕过开关。产物文件不是 GIS 数据，读 SVG、PPTX、HTML 里的文字用标准库，不算第二份引擎。说明见 [artifact-text.md](artifact-text.md)。

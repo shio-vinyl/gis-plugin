@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640" role="img">
+  <title>Where gis-plugin sits: hosts, shell, engines and contract files</title>
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .box { fill: #f6f8fa; stroke: #d0d7de; }
+    .shell { fill: #eef4ff; stroke: #4f7fd9; }
+    .sub { fill: #ffffff; stroke: #b6c8ee; }
+    .dashed { stroke-dasharray: 5 4; }
+    .t { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #1f2328; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'PingFang SC', 'Noto Sans Mono CJK SC', 'Microsoft YaHei', monospace; fill: #1f2328; white-space: pre; }
+    .muted { fill: #59636e; }
+    .accent { fill: #2f5fb3; }
+    .deny { fill: #b42318; }
+    .line { stroke: #8c959f; fill: none; }
+    .arrow { fill: #8c959f; }
+    .pill { fill: #e7ecf3; }
+    .pill-deny { fill: #fde8e7; }
+    .pill-ok { fill: #e6f4ea; }
+    .bubble { fill: #f6f8fa; stroke: #d0d7de; }
+    .ctx { fill: #f3f7ff; stroke: #c9d8f5; }
+    .err { fill: #fff5f4; stroke: #f3c3bf; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .box { fill: #161b22; stroke: #30363d; }
+      .shell { fill: #13213a; stroke: #4f7fd9; }
+      .sub { fill: #0d1117; stroke: #2c4673; }
+      .t, .m { fill: #e6edf3; }
+      .muted { fill: #9198a1; }
+      .accent { fill: #8fb4ff; }
+      .deny { fill: #ff8a80; }
+      .line { stroke: #6e7681; }
+      .arrow { fill: #6e7681; }
+      .pill { fill: #21262d; }
+      .pill-deny { fill: #3d1d1b; }
+      .pill-ok { fill: #17301f; }
+      .bubble { fill: #161b22; stroke: #30363d; }
+      .ctx { fill: #111c2e; stroke: #22385c; }
+      .err { fill: #261515; stroke: #5c2b27; }
+    }
+  </style>
+  <rect class="bg" x="0.5" y="0.5" width="899" height="639" rx="12"/>
+  <text x="40" y="44" class="t muted" font-size="13" font-weight="600">Agent hosts</text>
+  <rect class="box" x="70.0" y="58" width="236" height="44" rx="8"/>
+  <text x="188.0" y="86" class="t" font-size="15" font-weight="600" text-anchor="middle">Claude Code</text>
+  <rect class="box" x="332.0" y="58" width="236" height="44" rx="8"/>
+  <text x="450.0" y="86" class="t" font-size="15" font-weight="600" text-anchor="middle">Codex</text>
+  <rect class="box" x="594.0" y="58" width="236" height="44" rx="8"/>
+  <text x="712.0" y="86" class="t" font-size="15" font-weight="600" text-anchor="middle">DeepSeek Harness</text>
+  <path class="line" stroke-width="1.5" d="M450.0 104 V139"/>
+  <path class="arrow" d="M445.0 138 L455.0 138 L450.0 146 Z"/>
+  <text x="462.0" y="130" class="m muted" font-size="12">plugin manifests · skills · hooks.json</text>
+  <rect class="shell" x="40" y="148" width="820" height="214" rx="12" stroke-width="1.5"/>
+  <text x="62" y="182" class="m accent" font-size="20" font-weight="700">gis-plugin</text>
+  <text x="198.0" y="181" class="t muted" font-size="13">Thin shell: never reads or writes GIS data; hooks use the Python standard library only</text>
+  <rect class="sub" x="62" y="204" width="183" height="136" rx="8"/>
+  <text x="78" y="232" class="t accent" font-size="15" font-weight="700">Hooks</text>
+  <text x="78" y="260" class="t" font-size="13">metadata cards</text>
+  <text x="78" y="284" class="t" font-size="13">source protection</text>
+  <text x="78" y="308" class="t" font-size="13">style &amp; artifact text</text>
+  <rect class="sub" x="259" y="204" width="183" height="136" rx="8"/>
+  <text x="275" y="232" class="t accent" font-size="15" font-weight="700">Contracts</text>
+  <text x="275" y="260" class="m" font-size="13">contracts/</text>
+  <text x="275" y="284" class="m" font-size="13">JSON Schemas</text>
+  <text x="275" y="308" class="t" font-size="13">version pairing</text>
+  <rect class="sub" x="456" y="204" width="183" height="136" rx="8"/>
+  <text x="472" y="232" class="t accent" font-size="15" font-weight="700">Diagnostics</text>
+  <text x="472" y="260" class="m" font-size="13">/gis-doctor</text>
+  <text x="472" y="284" class="t" font-size="13">versions &amp; capabilities</text>
+  <text x="472" y="308" class="t" font-size="13">stale skill installs</text>
+  <rect class="sub" x="653" y="204" width="183" height="136" rx="8"/>
+  <text x="669" y="232" class="t accent" font-size="15" font-weight="700">Evals</text>
+  <text x="669" y="260" class="m" font-size="13">evals/</text>
+  <text x="669" y="284" class="t" font-size="13">with vs. without shell</text>
+  <text x="669" y="308" class="t" font-size="13">shell features only</text>
+  <path class="line" stroke-width="1.5" d="M188.0 364 V429"/>
+  <path class="arrow" d="M183.0 428 L193.0 428 L188.0 436 Z"/>
+  <path class="line" stroke-width="1.5" d="M450.0 364 V429"/>
+  <path class="arrow" d="M445.0 428 L455.0 428 L450.0 436 Z"/>
+  <path class="line" stroke-width="1.5" d="M712.0 364 V429"/>
+  <path class="arrow" d="M707.0 428 L717.0 428 L712.0 436 Z"/>
+  <rect class="bg" x="213.79999999999978" y="388" width="472.40000000000043" height="24" rx="6" stroke="none"/>
+  <text x="450.0" y="404" class="t muted" font-size="13" text-anchor="middle">CLI (--json): the only interface between shell and engines</text>
+  <rect class="box" x="70.0" y="438" width="236" height="78" rx="8"/>
+  <text x="86.0" y="468" class="m" font-size="16" font-weight="700">gis-kit</text>
+  <rect class="pill-ok" x="238.4" y="452" width="55.6" height="22" rx="11"/>
+  <text x="266.2" y="467" class="t muted" font-size="11" text-anchor="middle">public</text>
+  <text x="86.0" y="496" class="t muted" font-size="13">compute, convert, write data</text>
+  <rect class="box" x="332.0" y="438" width="236" height="78" rx="8"/>
+  <text x="348.0" y="468" class="m" font-size="16" font-weight="700">gis-view</text>
+  <rect class="pill" x="493.8" y="452" width="62.2" height="22" rx="11"/>
+  <text x="524.9" y="467" class="t muted" font-size="11" text-anchor="middle">private</text>
+  <text x="348.0" y="496" class="t muted" font-size="13">look, select, review</text>
+  <rect class="box" x="594.0" y="438" width="236" height="78" rx="8"/>
+  <text x="610.0" y="468" class="m" font-size="16" font-weight="700">gis-composer</text>
+  <rect class="pill" x="755.8" y="452" width="62.2" height="22" rx="11"/>
+  <text x="786.9" y="467" class="t muted" font-size="11" text-anchor="middle">private</text>
+  <text x="610.0" y="496" class="t muted" font-size="13">final maps and films</text>
+  <path class="line dashed" stroke-width="1.5" d="M188.0 518 V548"/>
+  <path class="line dashed" stroke-width="1.5" d="M450.0 518 V548"/>
+  <path class="line dashed" stroke-width="1.5" d="M712.0 518 V548"/>
+  <rect class="box dashed" x="40" y="548" width="820" height="56" rx="10"/>
+  <text x="62" y="572" class="t" font-size="14" font-weight="700">Contract files</text>
+  <text x="193.60000000000002" y="572" class="m muted" font-size="12">sources · semantics · describe · class-scheme · display-vector · map-style …</text>
+  <text x="62" y="593" class="t muted" font-size="12">Engines never call each other; they meet only through files, and each works on its own without the shell</text>
+</svg>
