@@ -4,7 +4,7 @@
 
 **A thin shell for AI agents working with GIS data: inject facts, protect source data, check contracts.**
 
-A plugin for Claude Code, Codex and DeepSeek Harness, used together with GIS engines such as [gis-kit](https://github.com/shioo-gis/gis-kit).
+A plugin for Claude Code, Codex and DeepSeek Harness, used together with GIS engines such as [gis-kit](https://github.com/shio-vinyl/gis-kit).
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.9-informational.svg)](.claude-plugin/plugin.json)
@@ -67,12 +67,12 @@ Jobs that take two engines in turn are written as recipes the agent follows, wit
 
 ## Quick start
 
-**1. Install gis-kit** as a skill and set up its Python environment, following [its README](https://github.com/shioo-gis/gis-kit#quick-start). Metadata cards come from it; source protection, project style and artifact text do not need it.
+**1. Install gis-kit** as a skill and set up its Python environment, following [its README](https://github.com/shio-vinyl/gis-kit#quick-start). Metadata cards come from it; source protection, project style and artifact text do not need it.
 
 **2. Install the plugin**: clone it locally, then install it in your host.
 
 ```bash
-git clone https://github.com/shioo-gis/gis-plugin.git ~/gis-plugin
+git clone https://github.com/shio-vinyl/gis-plugin.git ~/gis-plugin
 ```
 
 Claude Code:
@@ -115,10 +115,10 @@ Then talk to the agent as usual, e.g. “How should these fields in `census/town
 
 - **Runtime**: Python 3; hooks, doctor and the update script use only the standard library. The default interpreter is `python3` (`python` under PowerShell); set `GIS_PLUGIN_PYTHON` to choose another.
 - **Engines**:
-  - [gis-kit](https://github.com/shioo-gis/gis-kit) is public and handles computation, conversion and metadata cards.
+  - [gis-kit](https://github.com/shio-vinyl/gis-kit) is public and handles computation, conversion and metadata cards.
   - gis-view (a read-only local data viewer) and gis-composer (finished maps and map films) are two other projects of mine, still in private development. I plan to publish them once they are in shape; there is no date yet. Without them doctor reports “not configured” and the rest of the shell works as usual. Links to their repositories in the contract notes do not open for now.
   - doctor and the update script also know a few other skills in the series (plan-deck, chart-forms, plan-diagram, house-style). They are not public either; when absent they are only reported.
-- **Hosts**: tested mainly with Claude Code, Codex and DeepSeek Harness on macOS. On Windows the hook command parses under PowerShell and Git Bash, but in the DeepSeek Harness App the hook processes currently fail to start, so protection does not apply there ([#31](https://github.com/shioo-gis/gis-plugin/issues/31)). Host differences, known limits and items still to test are in [host adaptation](docs/harnesses.md) and [#43](https://github.com/shioo-gis/gis-plugin/issues/43).
+- **Hosts**: tested mainly with Claude Code, Codex and DeepSeek Harness on macOS. On Windows the hook command parses under PowerShell and Git Bash, but in the DeepSeek Harness App the hook processes currently fail to start, so protection does not apply there ([#31](https://github.com/shio-vinyl/gis-plugin/issues/31)). Host differences, known limits and items still to test are in [host adaptation](docs/harnesses.md) and [#43](https://github.com/shio-vinyl/gis-plugin/issues/43).
 
 ## Documentation
 

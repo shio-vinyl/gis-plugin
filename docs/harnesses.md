@@ -1,6 +1,6 @@
 # 多宿主适配
 
-外壳面向 Claude Code（CC）、Codex 与 DeepSeek Harness（命令行为 `dsh`）三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 下面的差异按 Codex CLI 0.160.0、DeepSeek Harness App 0.2.1-rc.3（Windows 上 0.2.1-rc.5）、CC 2.1.258 核对，宿主升级后需复核。各宿主的实测记录和还没实测的项目记在 [#43](https://github.com/shioo-gis/gis-plugin/issues/43)。
+外壳面向 Claude Code（CC）、Codex 与 DeepSeek Harness（命令行为 `dsh`）三个宿主。原则：**skills 与 hooks 脚本只写一份，各宿主只加一层清单。** 下面的差异按 Codex CLI 0.160.0、DeepSeek Harness App 0.2.1-rc.3（Windows 上 0.2.1-rc.5）、CC 2.1.258 核对，宿主升级后需复核。各宿主的实测记录和还没实测的项目记在 [#43](https://github.com/shio-vinyl/gis-plugin/issues/43)。
 
 ## 1. 差异
 
@@ -46,7 +46,7 @@ hooks/scripts/                    标准库 Python
 
 ## 4. 安装与配置
 
-以下均为示例，安装须用户执行或明确授权。`<repo>` 为本仓库本地克隆的绝对路径（`git clone https://github.com/shioo-gis/gis-plugin.git <repo>`）。
+以下均为示例，安装须用户执行或明确授权。`<repo>` 为本仓库本地克隆的绝对路径（`git clone https://github.com/shio-vinyl/gis-plugin.git <repo>`）。
 
 | 宿主 | 安装 | 备注 |
 |---|---|---|
@@ -101,7 +101,7 @@ Windows 上 `python`、`python3` 都可能是应用商店占位程序（直接�
 setx GIS_PLUGIN_PYTHON "<python.exe 的完整路径>"
 ```
 
-**Windows 的 DeepSeek Harness App 上保护目前不生效。** App 0.2.1-rc.5 的真实回合里，hook 进程全部以 `0xC0000142` 退出，宿主按放行处理，受保护文件被改、被删；同一条命令离线能 deny，所以改 `hooks.json` 修不了。原因未确认，见 [#31](https://github.com/shioo-gis/gis-plugin/issues/31)。在这个宿主上不要依赖这层保护，处理重要数据时用副本。
+**Windows 的 DeepSeek Harness App 上保护目前不生效。** App 0.2.1-rc.5 的真实回合里，hook 进程全部以 `0xC0000142` 退出，宿主按放行处理，受保护文件被改、被删；同一条命令离线能 deny，所以改 `hooks.json` 修不了。原因未确认，见 [#31](https://github.com/shio-vinyl/gis-plugin/issues/31)。在这个宿主上不要依赖这层保护，处理重要数据时用副本。
 
 **shell 命令只能尽力识别。** 除了 `WRITERS` 列出的命令，任何命令的 `-o`、`--out`、`--output`、`--out-dir`、`--output-dir`、`--output-file`、`--output-errors` 都按写入目标处理，不认脚本名。认不出的写法仍会放行：位置参数形式的输出（如 `raster-georef fit`）、`python -c` 和脚本内部的写入。
 
