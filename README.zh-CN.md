@@ -4,7 +4,7 @@
 
 **给 AI agent 处理 GIS 数据时用的薄外壳：注入事实、保护源数据、检查约定。**
 
-面向 Claude Code、Codex 和 DeepSeek Harness 的插件，配合 [gis-kit](https://github.com/shioo-gis/gis-kit) 等 GIS 引擎使用。
+面向 Claude Code、Codex 和 DeepSeek Harness 的插件，配合 [gis-kit](https://github.com/shio-vinyl/gis-kit) 等 GIS 引擎使用。
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.9-informational.svg)](.claude-plugin/plugin.json)
@@ -67,12 +67,12 @@ hooks 注入的是事实，不是指令：卡片说明“这份数据是什么�
 
 ## 快速开始
 
-**1. 装好 gis-kit**：按 [gis-kit 的说明](https://github.com/shioo-gis/gis-kit/blob/main/README.zh-CN.md#快速开始)装成 skill 并准备 Python 环境。元数据卡片靠它产出；源数据保护、项目样式和产物用语不需要它。
+**1. 装好 gis-kit**：按 [gis-kit 的说明](https://github.com/shio-vinyl/gis-kit/blob/main/README.zh-CN.md#快速开始)装成 skill 并准备 Python 环境。元数据卡片靠它产出；源数据保护、项目样式和产物用语不需要它。
 
 **2. 安装插件**：先克隆到本地，再按宿主安装。
 
 ```bash
-git clone https://github.com/shioo-gis/gis-plugin.git ~/gis-plugin
+git clone https://github.com/shio-vinyl/gis-plugin.git ~/gis-plugin
 ```
 
 Claude Code：
@@ -115,10 +115,10 @@ python3 ~/gis-plugin/skills/gis-doctor/scripts/gis_doctor.py
 
 - **运行环境**：Python 3，hooks、doctor 和更新脚本只用标准库。默认解释器是 `python3`（PowerShell 下是 `python`），可用环境变量 `GIS_PLUGIN_PYTHON` 指定。
 - **引擎**：
-  - [gis-kit](https://github.com/shioo-gis/gis-kit)：已公开，负责计算、转换和元数据卡片。
+  - [gis-kit](https://github.com/shio-vinyl/gis-kit)：已公开，负责计算、转换和元数据卡片。
   - gis-view（只读的本地数据查看窗口）和 gis-composer（正式地图和地图影片）是我的另外两个项目，还在私有开发，整理好之后再公开，时间没有定。没装时 doctor 报“未配置”，外壳其余部分照常工作。约定文档里指向它们仓库的链接暂时打不开。
   - doctor 和更新脚本还认得系列里的另外几个 skill（plan-deck、chart-forms、plan-diagram、house-style），它们同样没有公开，没装时只报告。
-- **宿主**：主要在 macOS 上的 Claude Code、Codex、DeepSeek Harness 中测试。Windows 上的 hook 命令能被 PowerShell 和 Git Bash 解析，但 DeepSeek Harness App 里 hook 进程目前起不来，保护不生效（[#31](https://github.com/shioo-gis/gis-plugin/issues/31)）。各宿主的差异、已知限制和待实测项见[多宿主适配](docs/harnesses.md)与 [#43](https://github.com/shioo-gis/gis-plugin/issues/43)。
+- **宿主**：主要在 macOS 上的 Claude Code、Codex、DeepSeek Harness 中测试。Windows 上的 hook 命令能被 PowerShell 和 Git Bash 解析，但 DeepSeek Harness App 里 hook 进程目前起不来，保护不生效（[#31](https://github.com/shio-vinyl/gis-plugin/issues/31)）。各宿主的差异、已知限制和待实测项见[多宿主适配](docs/harnesses.md)与 [#43](https://github.com/shio-vinyl/gis-plugin/issues/43)。
 
 ## 文档
 

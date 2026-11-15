@@ -106,7 +106,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## describe
 
-产出方为 gis-kit 的 `gis.py describe <path> --json`，格式与字段说明由 gis-kit 维护：[describe.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/describe.schema.json)、[harness.md](https://github.com/shioo-gis/gis-kit/blob/main/references/harness.md)（`schema_version: 1`）。本仓库不保留副本。
+产出方为 gis-kit 的 `gis.py describe <path> --json`，格式与字段说明由 gis-kit 维护：[describe.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/describe.schema.json)、[harness.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/harness.md)（`schema_version: 1`）。本仓库不保留副本。
 
 外壳 hook `hooks/scripts/inject_describe.py` 作为读取方：
 
@@ -115,7 +115,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## class-scheme 与 display-raster
 
-产出方是 gis-kit，读取方是 gis-composer，均为 `schema_version: 1`。说明由 gis-kit 维护：[class-scheme.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/class-scheme.schema.json)、[display-raster.schema.json](https://github.com/shioo-gis/gis-kit/blob/main/references/display-raster.schema.json)、[composer-display.md](https://github.com/shioo-gis/gis-kit/blob/main/references/composer-display.md)。本仓库不保留副本。
+产出方是 gis-kit，读取方是 gis-composer，均为 `schema_version: 1`。说明由 gis-kit 维护：[class-scheme.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/class-scheme.schema.json)、[display-raster.schema.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/display-raster.schema.json)、[composer-display.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/composer-display.md)。本仓库不保留副本。
 
 - 分界原则：几何、数值和语义归 gis-kit，颜色、纹理和图例归 gis-composer。方案只说明每一类是什么，颜色由 gis-composer 按主题决定，所以换主题时矢量和栅格会一起变色。
 - gis-kit 在 `capabilities` 中声明 `write: [1]`，gis-composer 声明 `read: [1]`，`gis-doctor` 两两配对；读取方遇到不认识的版本时拒绝。
@@ -123,7 +123,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## display-vector
 
-产出方是 gis-kit `display-vector.py`，读取方是 gis-composer，`schema_version: 1`。说明见 [display-vector.md](https://github.com/shioo-gis/gis-kit/blob/main/references/display-vector.md)。本仓库不保留副本。
+产出方是 gis-kit `display-vector.py`，读取方是 gis-composer，`schema_version: 1`。说明见 [display-vector.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/display-vector.md)。本仓库不保留副本。
 
 - 底图按视角概括，不预存多比例尺底图：gis-composer `inspect` 报告每个面板的视角，gis-kit 只为这个视角生成一次显示包，发布到项目 `inputs/`。
 - gis-composer 读取前核对文件哈希，并比较包的视角与实际渲染的比例尺和范围，不符时 lint 警告，由 Agent 按新视角重新生成；渲染器不做几何计算。
@@ -132,14 +132,14 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## tile-snapshot
 
-产出方是 gis-kit `snapshot.py`，读取方是 gis-composer，`schema_version: 1`。说明见 [tile-snapshot.md](https://github.com/shioo-gis/gis-kit/blob/main/references/tile-snapshot.md)，服务商白名单在 [snapshot-providers.json](https://github.com/shioo-gis/gis-kit/blob/main/references/snapshot-providers.json)。
+产出方是 gis-kit `snapshot.py`，读取方是 gis-composer，`schema_version: 1`。说明见 [tile-snapshot.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/tile-snapshot.md)，服务商白名单在 [snapshot-providers.json](https://github.com/shio-vinyl/gis-kit/blob/main/references/snapshot-providers.json)。
 
 - 在线瓦片先快照进 Composer 项目的 `inputs/`，渲染只读本地瓦片，不联网；条款禁止缓存的服务由 gis-kit 拒绝。
 - gis-composer 读取前核对瓦片哈希，并把署名写进来源行。两边分别在 `capabilities` 中声明 `write: [1]` / `read: [1]`，由 `gis-doctor` 配对。
 
 ## admin-chain
 
-产出方是 gis-kit `admin-chain.py`，`schema_version: 1`。说明见 [admin-chain.md](https://github.com/shioo-gis/gis-kit/blob/main/references/admin-chain.md)。本仓库不保留副本。
+产出方是 gis-kit `admin-chain.py`，`schema_version: 1`。说明见 [admin-chain.md](https://github.com/shio-vinyl/gis-kit/blob/main/references/admin-chain.md)。本仓库不保留副本。
 
 - gis-kit 负责找各级单元、取下一级界线和显示简化；国界口径显式选择并写进清单。
 - 产出的 GeoJSON 作为普通数据交给 gis-composer 的地图清单：分面逐级展开面板，范围由清单从同一份数据推导，不抄坐标；版式由地图清单决定，颜色由项目主题决定。清单本身供 Agent 核对级数、名称与告警。
@@ -148,7 +148,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## project（共用项目目录）
 
-说明由 gis-composer 维护：[架构 §4 项目工作区](https://github.com/shioo-gis/gis-composer/blob/main/docs/architecture.md#4-项目工作区)、[地图清单与 Sheet](https://github.com/shioo-gis/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)（项目清单 `schemaVersion: 1`）。目录布局、清单字段与出版参数以那里为准，本仓库只做索引，不保留副本。
+说明由 gis-composer 维护：[架构 §4 项目工作区](https://github.com/shio-vinyl/gis-composer/blob/main/docs/architecture.md#4-项目工作区)、[地图清单与 Sheet](https://github.com/shio-vinyl/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)（项目清单 `schemaVersion: 1`）。目录布局、清单字段与出版参数以那里为准，本仓库只做索引，不保留副本。
 
 - **各写各的**：一个项目一个根目录，引擎之间只交换文件。gis-kit 只写 `inputs/<分析名>/`（新目录、原子发布、不覆盖，自带 `record.json`）；清单、主题、地图清单、运行与发布目录归 gis-composer 和 Agent；gis-view 可以打开项目里的任何文件查看，但不写入项目。
 - **溯源**：gis-kit 的 `record.json` 与 Composer 的 `run.json` 用同一种算法记录文件 SHA-256，从分析到成图可以逐个核对。两份记录各管各的：`record.json` 只说明分析成果已完整发布，成图是否完成看 `run.json`。
@@ -160,7 +160,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## map-legend
 
-产出方是 gis-composer，`schema_version: 1`。说明见其 [地图清单与 Sheet](https://github.com/shioo-gis/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)。字段以那里为准，本仓库不保留副本。
+产出方是 gis-composer，`schema_version: 1`。说明见其 [地图清单与 Sheet](https://github.com/shio-vinyl/gis-composer/blob/main/docs/map-specs.md#map-specs-project-themes-and-encoding-blocks)。字段以那里为准，本仓库不保留副本。
 
 - 每张渲染出的图旁写一份 `<图>.legend.json`，记录渲染时按主题解析出的图例（最终色值）和放置尺寸。
 - 用法：图要放进汇报页、由页面画可编辑图例时，地图清单关掉 PNG 里的图例，出页脚本读这份文件画图例、按尺寸放图，不手抄颜色和标签。
@@ -168,7 +168,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 ## resolved-theme
 
-产出方是 gis-composer 的 `theme resolve [<theme>]`，`schemaVersion: 1`、`kind: "resolved-theme"`（composer 自己的字段名，不是本页的 `contract`、`schema_version`）。字段见其 [主题文档](https://github.com/shioo-gis/gis-composer/blob/main/docs/themes.md#theme-inheritance-and-tokens)，本仓库不保留副本。
+产出方是 gis-composer 的 `theme resolve [<theme>]`，`schemaVersion: 1`、`kind: "resolved-theme"`（composer 自己的字段名，不是本页的 `contract`、`schema_version`）。字段见其 [主题文档](https://github.com/shio-vinyl/gis-composer/blob/main/docs/themes.md#theme-inheritance-and-tokens)，本仓库不保留副本。
 
 - **只读查询**：打印主题按 `extends` 和记号解析后的结果，不写文件，同样的输入得到同样的 JSON。默认解析项目主题，也可以给内置主题名或项目里的 `.theme.json`。
 - **系列里唯一的跨工具调用**：别的约定都靠文件交接，这一个是 plan-deck 加载 `style.json` 时调 composer 的命令行（`mapTheme` 指向 composer 项目；命令取自 `GIS_COMPOSER_CMD`，没有时读 `engines.env`）。命令不可用或主题出错时 plan-deck 报错，不回退到旧值。
@@ -179,7 +179,7 @@ Schema：[sources.schema.json](sources.schema.json)（`schema_version: 1`）。
 
 Schema：[map-style.schema.json](map-style.schema.json)（`schema_version: 1`，**草案**）。
 
-一份 `map-style` 描述一张图：有哪些图层、各引用什么数据、按什么顺序画、每层长什么样，以及可选的标注位置和图幅范围。它和平台、渲染器无关，不写 MapLibre 表达式、QML 或 CIM。设计讨论见 [#16](https://github.com/shioo-gis/gis-plugin/issues/16)。
+一份 `map-style` 描述一张图：有哪些图层、各引用什么数据、按什么顺序画、每层长什么样，以及可选的标注位置和图幅范围。它和平台、渲染器无关，不写 MapLibre 表达式、QML 或 CIM。设计讨论见 [#16](https://github.com/shio-vinyl/gis-plugin/issues/16)。
 
 - **为什么放在这里**：它有多个产出方（gis-composer 写已发布的地图，gis-view 写临时样式，gis-kit 从平台格式转回来），格式说明只写一处，所以由外壳维护。读的一方是 gis-kit（转成 QGIS 等平台格式）、gis-view 和 gis-composer。
 - **草案**：按 boundaries 的规则，约定本该等第一个产出方实现后再写 Schema。这份 Schema 先写，是为了让 composer 导出和 gis-kit 打包能按同一份字段并行开发（[boundaries.md](../docs/boundaries.md#8-已定事项) 里记的例外）。gis-composer 的导出实现时按实际输出定稿；定稿前各引擎不在 `capabilities` 里登记读写版本，doctor 也不配对。

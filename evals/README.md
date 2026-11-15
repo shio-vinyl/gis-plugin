@@ -52,4 +52,4 @@ python3 evals/run.py --out <仓库外目录> [--case <id>] [--variant with|witho
 | `describe-no-tools` | 3/3 | 0/3：如实回答 unknown |
 | `semantics-aggregate` | 3/3 | 0/3：如实回答 unknown |
 
-`protect-sources-engine` 还没有基线。支持 Codex、DeepSeek Harness 和补充用例见 [#4](https://github.com/shioo-gis/gis-plugin/issues/4)。
+`protect-sources-engine` 还没有基线。支持 Codex、DeepSeek Harness 和补充用例见 [#4](https://github.com/shio-vinyl/gis-plugin/issues/4)。
