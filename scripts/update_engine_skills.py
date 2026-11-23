@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update the GIS series skills installed in each harness (CC, Codex, dsh). Standard library only.
+"""Update the GIS series skills installed in each harness (CC, Codex, dsh, AGY). Standard library only.
 
 Each install is handled by how it was made:
 - symlink: follows its source repository; nothing to do here.
@@ -52,6 +52,7 @@ def skill_dirs(environ):
         ("Codex", Path(environ.get("CODEX_HOME") or home / ".codex") / "skills"),
         ("agents", home / ".agents" / "skills"),
         ("dsh", home / ".dsh" / "skills"),
+        ("AGY", home / ".gemini" / "config" / "skills"),
     )
 
 
@@ -180,7 +181,7 @@ def run(environ, dry_run=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="更新各宿主（CC、Codex、dsh）中安装的 GIS 系列 skill。")
+    parser = argparse.ArgumentParser(description="更新各宿主（CC、Codex、dsh、AGY）中安装的 GIS 系列 skill。")
     parser.add_argument("--dry-run", action="store_true", help="只报告要做什么，不改文件")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):

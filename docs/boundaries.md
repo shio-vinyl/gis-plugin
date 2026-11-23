@@ -5,7 +5,7 @@
 ## 1. 三层结构
 
 ```
- Claude Code / Codex / DeepSeek Harness
+ Claude Code / Codex / DeepSeek Harness / Antigravity
           │  插件格式（skills、hooks、MCP 登记）
  ┌────────▼────────┐
  │   gis-plugin    │  集成层：入口、跨引擎 hooks、约定、诊断、评测
@@ -28,7 +28,7 @@
 
 | 内容 | 说明 |
 |---|---|
-| 各宿主清单 | CC、Codex 插件清单与 DeepSeek Harness 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
+| 各宿主清单 | CC、Codex、Antigravity 插件清单与 DeepSeek Harness 补丁层；引擎位置写在共用文件 `engines.env`（同名环境变量优先），见 [harnesses.md](harnesses.md) |
 | skills | 只有 `gis-doctor`；各引擎的入口在其仓库根目录的 `SKILL.md`（见 §8） |
 | hooks | 元数据注入、源数据保护，项目里有 `style/STYLE.md` 时注入一行“样式记在哪里”的事实（只查文件存在，不读内容），以及产物用语检查（刚写出的 SVG、PPTX、HTML 里有防御、解说、免责用语时回给模型，见 [artifact-text.md](artifact-text.md)）；仅 Python 标准库，读数据一律调引擎 CLI |
 | `contracts/` | 每种文件格式一份 JSON Schema 和说明，带 `schema_version` |

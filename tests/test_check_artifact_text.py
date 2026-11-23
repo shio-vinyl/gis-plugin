@@ -228,6 +228,45 @@ class Hook(unittest.TestCase):
                               env={**os.environ, **self.env, "PYTHONDONTWRITEBYTECODE": "1"})
         self.assertEqual((done.returncode, done.stdout), (0, b""))
 
+    def test_antigravity_two_stage_post_tool_use_and_pre_invocation(self):
+        def run(payload):
+            return subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                                  capture_output=True, timeout=60, env={**os.environ, **self.env, "PYTHONDONTWRITEBYTECODE": "1"})
+
+        svg1 = self.write("out/a.svg", svg("<text>岸线经简化</text>"))
+        other = self.tmp / "别处项目"
+        (other / "out").mkdir(parents=True)
+        html1 = other / "out" / "page.html"
+        html1.write_text("<p>范围示意，仅供参考</p>", encoding="utf-8")
+
+        # Failed edit_file is skipped and still returns {}
+        failed = run({"hookEventName": "PostToolUse", "conversationId": "conv-1", "cwd": str(self.project),
+                      "error": "target not found", "toolCall": {"id": "c0", "name": "edit_file", "args": {"Path": str(svg1)}}})
+        self.assertEqual((failed.returncode, json.loads(failed.stdout)), (0, {}))
+        empty_pre = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.project), "invocationNum": 1})
+        self.assertEqual((empty_pre.returncode, empty_pre.stdout), (0, b""))
+
+        # Parallel PostToolUse: explicit write_file + run_command that cd'd into another directory
+        post1 = run({"hookEventName": "PostToolUse", "conversationId": "conv-1", "cwd": str(self.project), "error": "",
+                     "toolCall": {"id": "c1", "name": "write_file", "args": {"Path": str(svg1)}}})
+        post2 = run({"hookEventName": "PostToolUse", "conversationId": "conv-1", "cwd": str(self.project), "error": "",
+                     "toolCall": {"id": "c2", "name": "run_command", "args": {"CommandLine": f"cd '{other}' && echo built"}}})
+        self.assertEqual((post1.returncode, json.loads(post1.stdout)), (0, {}))
+        self.assertEqual((post2.returncode, json.loads(post2.stdout)), (0, {}))
+
+        # Next PreInvocation drains both reports into systemMessage
+        pre = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.project), "invocationNum": 2})
+        self.assertEqual(pre.returncode, 0, pre.stderr)
+        out = json.loads(pre.stdout.decode("ascii"))
+        self.assertEqual(set(out), {"injectSteps"})
+        msg = out["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn("岸线经简化", msg)
+        self.assertIn("范围示意，仅供参考", msg)
+
+        # Drained: next PreInvocation is silent
+        again = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.project), "invocationNum": 3})
+        self.assertEqual((again.returncode, again.stdout), (0, b""))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,55 @@
+{
+  "gis-plugin": {
+    "PreToolUse": [
+      {
+        "matcher": "^(write_file|edit_file|run_command|write_to_file|replace_file_content|multi_replace_file_content|notebook_edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/protect_sources.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/inject_describe.py",
+        "timeout": 30
+      },
+      {
+        "type": "command",
+        "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/inject_style.py",
+        "timeout": 10
+      },
+      {
+        "type": "command",
+        "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/check_artifact_text.py",
+        "timeout": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(read_file|view_file|run_command)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/inject_describe.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "^(write_file|edit_file|run_command|write_to_file|replace_file_content|multi_replace_file_content)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "exec \"${GIS_PLUGIN_PYTHON:-python3}\" ./hooks/scripts/check_artifact_text.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

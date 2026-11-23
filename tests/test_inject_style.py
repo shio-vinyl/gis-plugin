@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "hooks" / "scripts" / "inject_style.py"
 
+sys.path.insert(0, str(SCRIPT.parent))  # the hook imports its sibling `_harness` module
 spec = importlib.util.spec_from_file_location("inject_style", SCRIPT)
 hook = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hook)
@@ -91,6 +92,22 @@ class InjectStyle(unittest.TestCase):
         done.stdout.decode("ascii")
         broken = subprocess.run([sys.executable, str(SCRIPT)], input=b"not json", capture_output=True, env=env, timeout=30)
         self.assertEqual((broken.returncode, broken.stdout), (0, b""))
+
+    def test_antigravity_pre_invocation_injects_once_with_protojson(self):
+        self.style()
+        env = {**self.env, "PYTHONDONTWRITEBYTECODE": "1", "PATH": ""}
+        payload = {"hookEventName": "PreInvocation", "conversationId": "conv-1",
+                   "workspacePaths": [str(self.project / "maps")], "invocationNum": 0, "lastUserInput": "出图"}
+        first = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                               capture_output=True, env=env, timeout=30)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        out = json.loads(first.stdout.decode("ascii"))
+        self.assertEqual(set(out), {"injectSteps"})
+        msg = out["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn(f"本项目（{self.project}）的样式记录在 style/STYLE.md", msg)
+        second = subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps({**payload, "invocationNum": 1}).encode("utf-8"),
+                                capture_output=True, env=env, timeout=30)
+        self.assertEqual((second.returncode, second.stdout), (0, b""))
 
 
 if __name__ == "__main__":

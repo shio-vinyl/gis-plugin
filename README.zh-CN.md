@@ -4,13 +4,14 @@
 
 **给 AI agent 处理 GIS 数据时用的薄外壳：注入事实、保护源数据、检查约定。**
 
-面向 Claude Code、Codex 和 DeepSeek Harness 的插件，配合 [gis-kit](https://github.com/shio-vinyl/gis-kit) 等 GIS 引擎使用。
+面向 Claude Code、Codex、DeepSeek Harness 和 Antigravity（macOS）的插件，配合 [gis-kit](https://github.com/shio-vinyl/gis-kit) 等 GIS 引擎使用。
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.9-informational.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-0.2.10-informational.svg)](.claude-plugin/plugin.json)
 [![Python](https://img.shields.io/badge/python-3%20%C2%B7%20stdlib%20only-3776AB.svg?logo=python&logoColor=white)](hooks/scripts)
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757.svg)](.claude-plugin/plugin.json)
 [![Codex plugin](https://img.shields.io/badge/Codex-plugin-412991.svg)](.codex-plugin/plugin.json)
+[![Antigravity plugin](https://img.shields.io/badge/Antigravity-plugin-1A73E8.svg)](.antigravity-plugin/plugin.json)
 
 [English](README.md) · 简体中文
 
@@ -89,7 +90,16 @@ codex plugin marketplace add ~/gis-plugin
 codex plugin add gis-plugin@gis-plugin
 ```
 
-装完到交互式 `codex` 里审核并信任本插件的 hooks；`hooks.json` 每次变化后都要重新信任，否则 hooks 不运行。DeepSeek Harness 没有插件安装，skill 软链、hooks 走桥接，步骤见[多宿主适配](docs/harnesses.md#4-安装与配置)。
+装完到交互式 `codex` 里审核并信任本插件的 hooks；`hooks/hooks.json` 每次变化后都要重新信任，否则 hooks 不运行。
+
+Antigravity（macOS，App 与 CLI 共用 `~/.gemini/config`）：
+
+```bash
+ln -s ~/gis-plugin ~/.gemini/config/plugins/gis-plugin
+# 或复制安装（仓库更新后需重跑）：agy plugin install ~/gis-plugin
+```
+
+DeepSeek Harness 没有插件安装，skill 软链、hooks 走桥接；Antigravity 的沙箱权限放行见[多宿主适配](docs/harnesses.md#5-antigravitymacos)。
 
 **3. 告诉外壳引擎在哪里**：写 `~/.config/gis-plugin/engines.env`，同名环境变量优先。
 
@@ -118,7 +128,7 @@ python3 ~/gis-plugin/skills/gis-doctor/scripts/gis_doctor.py
   - [gis-kit](https://github.com/shio-vinyl/gis-kit)：已公开，负责计算、转换和元数据卡片。
   - gis-view（只读的本地数据查看窗口）和 gis-composer（正式地图和地图影片）是我的另外两个项目，还在私有开发，整理好之后再公开，时间没有定。没装时 doctor 报“未配置”，外壳其余部分照常工作。约定文档里指向它们仓库的链接暂时打不开。
   - doctor 和更新脚本还认得系列里的另外几个 skill（plan-deck、chart-forms、plan-diagram、house-style），它们同样没有公开，没装时只报告。
-- **宿主**：主要在 macOS 上的 Claude Code、Codex、DeepSeek Harness 中测试。Windows 上的 hook 命令能被 PowerShell 和 Git Bash 解析，但 DeepSeek Harness App 里 hook 进程目前起不来，保护不生效（[#31](https://github.com/shio-vinyl/gis-plugin/issues/31)）。各宿主的差异、已知限制和待实测项见[多宿主适配](docs/harnesses.md)与 [#43](https://github.com/shio-vinyl/gis-plugin/issues/43)。
+- **宿主**：主要在 macOS 上的 Claude Code、Codex、DeepSeek Harness 和 Antigravity 中测试。Windows 上 `hooks/hooks.json` 的命令能被 PowerShell 和 Git Bash 解析，但 DeepSeek Harness App 里 hook 进程目前起不来，保护不生效（[#31](https://github.com/shio-vinyl/gis-plugin/issues/31)）；Antigravity 的 Windows（`cmd /c`）暂未适配。各宿主的差异、已知限制和待实测项见[多宿主适配](docs/harnesses.md)与 [#43](https://github.com/shio-vinyl/gis-plugin/issues/43)。
 
 ## 文档
 

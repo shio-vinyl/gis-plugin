@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse hook: deny writes to source data registered in `.gis/sources.json`. Standard library only.
 
-Reads one hook payload (Claude Code, Codex or dsh bridge) on stdin. Write targets come from
+Reads one hook payload (Claude Code, Codex, DeepSeek Harness or Antigravity) on stdin. Write targets come from
 file-editing tools, Codex apply_patch, and a best-effort scan of shell commands.
 """
 
@@ -12,14 +12,26 @@ import shlex
 import sys
 from pathlib import Path
 
-sys.dont_write_bytecode = True  # importing the shared module must not leave __pycache__ in the plugin
+sys.dont_write_bytecode = True  # importing sibling modules must not leave __pycache__ in the plugin
+from _harness import is_antigravity, payload_cwd, tool_call  # noqa: E402
 from _patterns import glob_regex  # noqa: E402
 
 REGISTRY = Path(".gis") / "sources.json"
 SCHEMA_VERSION = 1
 
-FILE_TOOLS = {"write": "file_path", "edit": "file_path", "multiedit": "file_path", "notebookedit": "notebook_path"}
-SHELL_TOOLS = {"bash"}
+FILE_TOOLS = {
+    "write": ("file_path",),
+    "edit": ("file_path",),
+    "multiedit": ("file_path",),
+    "notebookedit": ("notebook_path",),
+    "notebook_edit": ("notebook_path", "Path", "TargetFile"),
+    "write_file": ("Path",),
+    "edit_file": ("Path",),
+    "write_to_file": ("TargetFile", "Path"),
+    "replace_file_content": ("TargetFile", "Path"),
+    "multi_replace_file_content": ("TargetFile", "Path"),
+}
+SHELL_TOOLS = {"bash", "run_command"}
 POWERSHELL_TOOLS = {"powershell", "pwsh"}
 PATCH_TOOLS = {"apply_patch"}
 
@@ -139,7 +151,17 @@ def _output_values(words):
     return values
 
 
-def _shell_targets(command, powershell=False):
+def _resolve_shell_path(target, cur, powershell=False):
+    if not cur or not target or target == "/dev/null" or target.startswith("&"):
+        return target
+    if os.path.isabs(os.path.expanduser(target)):
+        return target
+    if powershell and ((len(target) >= 2 and target[1] == ":") or target.startswith(("\\", "/"))):
+        return target
+    return os.path.join(cur, target)
+
+
+def _parse_shell(command, powershell=False):
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -148,10 +170,16 @@ def _shell_targets(command, powershell=False):
     try:
         tokens = list(lexer)
     except ValueError:
-        return []
-    targets, words, expect_redirect = [], [], False
+        return [], []
+    targets, cd_dirs, words, expect_redirect = [], [], [], False
+    cur, stack = None, []
+
+    def add(raw):
+        if raw:
+            targets.append(_resolve_shell_path(raw, cur, powershell))
 
     def flush():
+        nonlocal cur
         if not words:
             return
         name = os.path.basename(words[0])
@@ -159,56 +187,102 @@ def _shell_targets(command, powershell=False):
             words.pop(0)
             name = os.path.basename(words[0])
         args = [w for w in words[1:] if not w.startswith("-")]
+        if name == "cd" or (powershell and name.lower() in ("cd", "chdir", "sl", "set-location")):
+            if len(args) == 1:
+                dest = args[0].replace("\\", "/") if powershell else args[0]
+                cur = _resolve_shell_path(dest, cur, powershell)
+                cd_dirs.append(cur)
+            elif not args and not any(w == "-" for w in words[1:]):
+                cur = "~"
+                cd_dirs.append(cur)
+            words.clear()
+            return
         how = WRITERS.get(name)
         if powershell:
             how = POWERSHELL_WRITERS.get(name.lower(), WRITERS.get(name.lower()))
             args += [w.partition(":")[2] for w in words[1:] if w.startswith("-") and w.partition(":")[2]]  # -Path:x
         if how == "copy":
-            targets.append(_copy_destination(words))
+            add(_copy_destination(words))
         elif name == "sed" and any(w == "-i" or w.startswith("-i") or w == "--in-place" for w in words[1:]):
-            targets.extend(args[1:])
+            for arg in args[1:]:
+                add(arg)
         elif name == "dd":
-            targets.extend(w[3:] for w in words[1:] if w.startswith("of="))
+            for w in words[1:]:
+                if w.startswith("of="):
+                    add(w[3:])
         elif how == "all":
-            targets.extend(args)
+            for arg in args:
+                add(arg)
         elif how == "last" and args:
-            targets.append(args[-1])
+            add(args[-1])
         elif how == "first" and args:
-            targets.append(args[0])
-        targets.extend(_output_values(words[1:]))
+            add(args[0])
+        for value in _output_values(words[1:]):
+            add(value)
         words.clear()
 
     for token in tokens:
         if expect_redirect:
-            targets.append(token)
+            add(token)
             expect_redirect = False
         elif token in REDIRECTS or (token.endswith(">") and set(token) <= set("&>|0123456789")):
             expect_redirect = True
+        elif token == "(":
+            flush()
+            stack.append(cur)
+        elif token == ")":
+            flush()
+            if stack:
+                cur = stack.pop()
         elif token and (token in SEPARATORS or set(token) <= set(";&|()<")):
             flush()
         else:
             words.append(token)
     flush()
     found = [t for t in targets if t and t != "/dev/null" and not t.startswith("&")]
-    return [t.replace("\\", "/") for t in found] if powershell else found
+    if powershell:
+        return [t.replace("\\", "/") for t in found], [d.replace("\\", "/") for d in cd_dirs]
+    return found, cd_dirs
+
+
+def _shell_targets(command, powershell=False):
+    return _parse_shell(command, powershell)[0]
+
+
+def shell_cd_dirs(payload):
+    """Resolved directories entered via `cd` in a shell tool call, in order of appearance."""
+    tool, args = tool_call(payload)
+    if tool not in SHELL_TOOLS and tool not in POWERSHELL_TOOLS:
+        return []
+    command = str(args.get("command") or args.get("CommandLine") or "")
+    cwd = payload_cwd(payload)
+    resolved = []
+    for raw in _parse_shell(command, tool in POWERSHELL_TOOLS)[1]:
+        path = Path(os.path.expanduser(raw))
+        full = Path(os.path.normpath(path if path.is_absolute() else cwd / path))
+        if full not in resolved:
+            resolved.append(full)
+    return resolved
 
 
 def write_targets(payload):
-    tool = str(payload.get("tool_name", "")).lower()
-    tool_input = payload.get("tool_input") or {}
+    tool, tool_input = tool_call(payload)
     if tool in FILE_TOOLS:
-        value = tool_input.get(FILE_TOOLS[tool])
-        return [value] if isinstance(value, str) else []
+        for key in FILE_TOOLS[tool]:
+            value = tool_input.get(key)
+            if isinstance(value, str):
+                return [value]
+        return []
     if tool in PATCH_TOOLS:
         return PATCH_LINE.findall(str(tool_input.get("command") or tool_input.get("patch") or ""))
     if tool in SHELL_TOOLS or tool in POWERSHELL_TOOLS:
-        return _shell_targets(str(tool_input.get("command", "")), tool in POWERSHELL_TOOLS)
+        command = str(tool_input.get("command") or tool_input.get("CommandLine") or "")
+        return _shell_targets(command, tool in POWERSHELL_TOOLS)
     return []
 
 
 def decide(payload):
-    tool_input = payload.get("tool_input") or {}
-    cwd = Path(tool_input.get("workdir") or payload.get("cwd") or os.getcwd())
+    cwd = payload_cwd(payload)
     cache, reasons = {}, []
     for raw in write_targets(payload):
         path = Path(os.path.expanduser(raw))
@@ -220,6 +294,7 @@ def decide(payload):
 
 
 def main():
+    payload = {}
     try:
         payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")  # never the Windows code page
         reasons = decide(payload)
@@ -227,11 +302,14 @@ def main():
         print(f"gis-plugin protect_sources: {exc}", file=sys.stderr)
         return 0
     if reasons:
-        print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": "\n".join(reasons),
-        }}))  # ASCII escapes: Chinese text survives whatever code page a Windows hook's stdout uses
+        if is_antigravity(payload):
+            print(json.dumps({"decision": "deny", "reason": "\n".join(reasons)}))
+        else:
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "\n".join(reasons),
+            }}))  # ASCII escapes: Chinese text survives whatever code page a Windows hook's stdout uses
     return 0
 
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: report defensive, explanatory and disclaimer wording in artifacts just written. Standard library only.
+"""PostToolUse / PreInvocation hook: report defensive, explanatory and disclaimer wording in artifacts just written.
 
-Artifacts are `.svg`, `.pptx` and `.html`. File tools and Codex apply_patch name their targets; a shell command
-may write anywhere, so its output options and redirects are read the way protect_sources reads them, and the
-project root is scanned for artifacts modified in the last few minutes. The wording list is `artifact_text.json`.
+Standard library only. Artifacts are `.svg`, `.pptx` and `.html`. File tools and Codex apply_patch name their targets;
+a shell command may write anywhere, so its output options and redirects are read the way protect_sources reads them,
+and the project root is scanned for artifacts modified in the last few minutes. The wording list is `artifact_text.json`.
+On Antigravity, PostToolUse cannot return feedback to the model, so reports are queued and injected on the next PreInvocation.
 """
 
 import html
@@ -16,8 +17,12 @@ import zipfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # importing the sibling hooks must not leave __pycache__ in the plugin
+from _harness import (  # noqa: E402
+    drain_pending, enqueue_pending, event_name, inject_message, is_antigravity,
+    payload_cwd, session_id, tool_call, write_json,
+)
 from inject_style import project_root  # noqa: E402
-from protect_sources import POWERSHELL_TOOLS, SHELL_TOOLS, write_targets  # noqa: E402
+from protect_sources import POWERSHELL_TOOLS, SHELL_TOOLS, shell_cd_dirs, write_targets  # noqa: E402
 
 LIST_FILE = Path(__file__).with_name("artifact_text.json")
 SUFFIXES = {".svg", ".pptx", ".html", ".htm"}
@@ -214,8 +219,10 @@ def recent_artifacts(root, now, budget=SCAN_SECONDS):
 
 def candidates(payload, environ, now):
     """Artifacts to check: (path, explicit). Explicit targets are always checked; scanned ones once per version."""
-    tool_input = payload.get("tool_input") or {}
-    cwd = Path(os.path.abspath(tool_input.get("workdir") or payload.get("cwd") or os.getcwd()))
+    cwd = payload_cwd(payload)
+    tool, _ = tool_call(payload)
+    if is_antigravity(payload) and payload.get("error") and tool not in SHELL_TOOLS and tool not in POWERSHELL_TOOLS:
+        return [], []
     paths = []
     for raw in write_targets(payload):
         path = Path(os.path.expanduser(raw))
@@ -223,23 +230,34 @@ def candidates(payload, environ, now):
         if path.suffix.lower() in SUFFIXES and path not in paths:
             paths.append(path)
     scanned = []
-    tool = str(payload.get("tool_name", "")).lower()
     if tool in SHELL_TOOLS or tool in POWERSHELL_TOOLS:
-        root = project_root(cwd) or cwd
-        if root not in (Path.home(), Path(root.anchor)):  # never walk a whole home directory or disk
-            scanned = [p for p in recent_artifacts(root, now) if p not in paths]
+        roots = []
+        for directory in [cwd, *shell_cd_dirs(payload)]:
+            if not directory.is_dir():
+                continue
+            root = project_root(directory) or directory
+            if root not in (Path.home(), Path(root.anchor)) and root not in roots:  # never walk a whole home directory or disk
+                roots.append(root)
+        for root in roots:
+            for found in recent_artifacts(root, now):
+                if found not in paths and found not in scanned:
+                    scanned.append(found)
     return paths, scanned
 
 
 def run(payload, environ, now=None):
+    ag = is_antigravity(payload)
+    ev = event_name(payload)
+    key = session_id(payload)
+    if not key:
+        key = "cwd-" + re.sub(r"[^A-Za-z0-9]", "_", str(payload_cwd(payload)))[-100:]
+    if ag and ev == "PreInvocation":
+        pending = [item for item in drain_pending("artifact-text", key, environ) if isinstance(item, str) and item.strip()]
+        return "\n\n".join(dict.fromkeys(pending)) if pending else None
     now = time.time() if now is None else now
     explicit, scanned = candidates(payload, environ, now)
     if not explicit and not scanned:
         return None
-    key = str(payload.get("session_id") or "")
-    if not key:
-        cwd = payload.get("cwd") or os.getcwd()
-        key = "cwd-" + re.sub(r"[^A-Za-z0-9]", "_", os.path.abspath(cwd))[-100:]
     state_path = _state_file(key, environ)
     try:
         seen = json.loads(state_path.read_text(encoding="utf-8"))
@@ -264,8 +282,14 @@ def run(payload, environ, now=None):
             report.append((path, hits))
     cutoff = (now - STATE_TTL) * 1e9
     seen = {p: v for p, v in seen.items() if float(v.split(":")[0]) >= cutoff}
-    state_path.write_text(json.dumps(seen, ensure_ascii=False), encoding="utf-8")
-    return format_report(report) if report else None
+    write_json(state_path, seen)
+    formatted = format_report(report) if report else None
+    if ag and ev == "PostToolUse":
+        if formatted:
+            tag = str((payload.get("toolCall") or {}).get("id") or "")
+            enqueue_pending("artifact-text", key, formatted, environ, tag=tag)
+        return None
+    return formatted
 
 
 def format_report(report, limit=20):
@@ -281,13 +305,19 @@ def format_report(report, limit=20):
 
 
 def main():
+    payload = {}
+    reason = None
     try:
         payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")  # never the Windows code page
         reason = run(payload, os.environ)
     except Exception as exc:  # a broken hook must not disturb the session
         print(f"gis-plugin check_artifact_text: {exc}", file=sys.stderr)
-        return 0
-    if reason:
+    if is_antigravity(payload):
+        if event_name(payload) == "PostToolUse":
+            print("{}")
+        elif reason:
+            print(json.dumps(inject_message(reason)))
+    elif reason:
         print(json.dumps({"decision": "block", "reason": reason}))  # ASCII escapes survive any Windows code page
     return 0
 

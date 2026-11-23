@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit / PostToolUse hook: add metadata cards for GIS files mentioned. Standard library only.
+"""UserPromptSubmit / PreInvocation / PostToolUse hook: add metadata cards for GIS files mentioned. Standard library only.
 
 The shell never reads GIS data: cards come from `$GIS_KIT_CMD describe <path> --json`, plus the user's
 declarations in the nearest `.gis/semantics.json`. Each file is carded once per session until the file or
-its declarations change. Cards state facts, never instructions.
+its declarations change. Cards state facts, never instructions. On Antigravity, PostToolUse cannot inject
+context directly, so discovered paths are queued and carded on the next PreInvocation.
 """
 
 import json
@@ -15,8 +16,13 @@ import sys
 import time
 from pathlib import Path
 
-sys.dont_write_bytecode = True  # importing the shared module must not leave __pycache__ in the plugin
+sys.dont_write_bytecode = True  # importing sibling modules must not leave __pycache__ in the plugin
+from _harness import (  # noqa: E402
+    drain_pending, enqueue_pending, event_name, inject_message, is_antigravity,
+    payload_cwd, session_id, tool_call, write_json,
+)
 from _patterns import glob_regex  # noqa: E402
+from protect_sources import shell_cd_dirs  # noqa: E402
 
 SUFFIXES = ("gpkg", "shp", "geojson", "fgb", "gml", "kml", "gdb", "tif", "tiff", "vrt", "img", "asc", "jp2", "nc")
 PATH_RE = re.compile(r"([^\s\"'`<>|;,，。、：:（）()\[\]{}]+\.(?:" + "|".join(SUFFIXES) + r"))(?![A-Za-z0-9_])", re.I)
@@ -33,10 +39,13 @@ KINDS = {"total": "总量", "density": "密度", "ratio": "比率", "category": 
 
 
 def _texts(payload):
-    if payload.get("hook_event_name") == "UserPromptSubmit":
+    ev = event_name(payload)
+    if ev == "UserPromptSubmit":
         return [str(payload.get("prompt") or "")]
-    tool_input = payload.get("tool_input") or {}
-    return [v for v in tool_input.values() if isinstance(v, str)]
+    if ev == "PreInvocation":
+        return [str(payload.get("lastUserInput") or "")]
+    _, args = tool_call(payload)
+    return [v for v in args.values() if isinstance(v, str)]
 
 
 def engine_settings(environ):
@@ -61,8 +70,11 @@ def engine_settings(environ):
 
 def candidates(payload):
     """Existing GIS paths in the prompt or tool input, in order of appearance."""
-    tool_input = payload.get("tool_input") or {}
-    cwd = Path(tool_input.get("workdir") or payload.get("cwd") or os.getcwd())
+    cwd = payload_cwd(payload)
+    bases = [cwd]
+    for directory in shell_cd_dirs(payload):
+        if directory not in bases:
+            bases.append(directory)
     found = []
     for text in _texts(payload):
         for match in PATH_RE.finditer(text):
@@ -70,10 +82,20 @@ def candidates(payload):
             # Prose may run straight into a path ("看看data/a.shp"): drop leading characters until it exists.
             for start in range(len(raw)):
                 piece = os.path.expanduser(raw[start:])
-                path = Path(os.path.normpath(piece if os.path.isabs(piece) else cwd / piece))
-                if path.exists():
-                    if path not in found:
-                        found.append(path)
+                if os.path.isabs(piece):
+                    path = Path(os.path.normpath(piece))
+                    if path.exists():
+                        if path not in found:
+                            found.append(path)
+                        break
+                    if raw[start] == "/":
+                        break
+                    continue
+                matched = next((Path(os.path.normpath(base / piece)) for base in bases
+                                if Path(os.path.normpath(base / piece)).exists()), None)
+                if matched is not None:
+                    if matched not in found:
+                        found.append(matched)
                     break
                 if raw[start] == "/":
                     break
@@ -257,12 +279,30 @@ def describe(command, path):
 
 
 def run(payload, environ):
-    raw = engine_settings(environ).get("GIS_KIT_CMD", "").strip()
-    command = split_command(raw) if raw else None
+    ag = is_antigravity(payload)
+    ev = event_name(payload)
+    session = session_id(payload) or "no-session"
     paths = candidates(payload)
+    if ag and ev == "PostToolUse":
+        if paths:
+            tag = str((payload.get("toolCall") or {}).get("id") or "")
+            enqueue_pending("describe", session, [str(p) for p in paths], environ, tag=tag)
+        return None
+    if ag and ev == "PreInvocation":
+        for queued in drain_pending("describe", session, environ):
+            if not isinstance(queued, list):
+                continue
+            for raw_path in queued:
+                if not isinstance(raw_path, str):
+                    continue
+                path = Path(raw_path)
+                if path.exists() and path not in paths:
+                    paths.append(path)
     if not paths:
         return None
-    state_path = _state_file(str(payload.get("session_id") or "no-session"), environ)
+    raw = engine_settings(environ).get("GIS_KIT_CMD", "").strip()
+    command = split_command(raw) if raw else None
+    state_path = _state_file(session, environ)
     try:
         seen = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -282,18 +322,24 @@ def run(payload, environ):
             seen[str(path)] = revision
     if not cards:
         return None
-    state_path.write_text(json.dumps(seen, ensure_ascii=False), encoding="utf-8")
+    write_json(state_path, seen)
     return SOURCE_LINE + "\n\n" + "\n\n".join(cards)
 
 
 def main():
+    payload = {}
+    context = None
     try:
         payload = json.loads(sys.stdin.buffer.read().decode("utf-8-sig") or "{}")  # never the Windows code page
         context = run(payload, os.environ)
     except Exception as exc:  # a broken hook must not disturb the session
         print(f"gis-plugin inject_describe: {exc}", file=sys.stderr)
-        return 0
-    if context:
+    if is_antigravity(payload):
+        if event_name(payload) == "PostToolUse":
+            print("{}")
+        elif context:
+            print(json.dumps(inject_message(context)))
+    elif context:
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": payload.get("hook_event_name", "PostToolUse"),
             "additionalContext": context,
