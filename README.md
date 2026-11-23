@@ -4,13 +4,14 @@
 
 **A thin shell for AI agents working with GIS data: inject facts, protect source data, check contracts.**
 
-A plugin for Claude Code, Codex and DeepSeek Harness, used together with GIS engines such as [gis-kit](https://github.com/shio-vinyl/gis-kit).
+A plugin for Claude Code, Codex, DeepSeek Harness and Antigravity (macOS), used together with GIS engines such as [gis-kit](https://github.com/shio-vinyl/gis-kit).
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.9-informational.svg)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-0.2.10-informational.svg)](.claude-plugin/plugin.json)
 [![Python](https://img.shields.io/badge/python-3%20%C2%B7%20stdlib%20only-3776AB.svg?logo=python&logoColor=white)](hooks/scripts)
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757.svg)](.claude-plugin/plugin.json)
 [![Codex plugin](https://img.shields.io/badge/Codex-plugin-412991.svg)](.codex-plugin/plugin.json)
+[![Antigravity plugin](https://img.shields.io/badge/Antigravity-plugin-1A73E8.svg)](.antigravity-plugin/plugin.json)
 
 English · [简体中文](README.zh-CN.md)
 
@@ -89,7 +90,16 @@ codex plugin marketplace add ~/gis-plugin
 codex plugin add gis-plugin@gis-plugin
 ```
 
-Then review and trust the plugin's hooks in interactive `codex`. Every change to `hooks.json` needs trusting again, or the hooks do not run. DeepSeek Harness has no plugin installer: the skill is symlinked and hooks go through a bridge; see [host adaptation](docs/harnesses.md#4-安装与配置) (in Chinese).
+Then review and trust the plugin's hooks in interactive `codex`. Every change to `hooks/hooks.json` needs trusting again, or the hooks do not run.
+
+Antigravity (macOS; App and CLI share `~/.gemini/config`):
+
+```bash
+ln -s ~/gis-plugin ~/.gemini/config/plugins/gis-plugin
+# or install a copy (re-run after updates): agy plugin install ~/gis-plugin
+```
+
+DeepSeek Harness has no plugin installer: the skill is symlinked and hooks go through a bridge. See [host adaptation](docs/harnesses.md) (in Chinese) for DeepSeek Harness setup and Antigravity sandbox permissions.
 
 **3. Tell the shell where the engines are** in `~/.config/gis-plugin/engines.env`; environment variables of the same name take precedence.
 
@@ -118,7 +128,7 @@ Then talk to the agent as usual, e.g. “How should these fields in `census/town
   - [gis-kit](https://github.com/shio-vinyl/gis-kit) is public and handles computation, conversion and metadata cards.
   - gis-view (a read-only local data viewer) and gis-composer (finished maps and map films) are two other projects of mine, still in private development. I plan to publish them once they are in shape; there is no date yet. Without them doctor reports “not configured” and the rest of the shell works as usual. Links to their repositories in the contract notes do not open for now.
   - doctor and the update script also know a few other skills in the series (plan-deck, chart-forms, plan-diagram, house-style). They are not public either; when absent they are only reported.
-- **Hosts**: tested mainly with Claude Code, Codex and DeepSeek Harness on macOS. On Windows the hook command parses under PowerShell and Git Bash, but in the DeepSeek Harness App the hook processes currently fail to start, so protection does not apply there ([#31](https://github.com/shio-vinyl/gis-plugin/issues/31)). Host differences, known limits and items still to test are in [host adaptation](docs/harnesses.md) and [#43](https://github.com/shio-vinyl/gis-plugin/issues/43).
+- **Hosts**: tested mainly with Claude Code, Codex, DeepSeek Harness and Antigravity on macOS. On Windows the `hooks/hooks.json` command parses under PowerShell and Git Bash, but in the DeepSeek Harness App the hook processes currently fail to start, so protection does not apply there ([#31](https://github.com/shio-vinyl/gis-plugin/issues/31)); Antigravity on Windows (`cmd /c`) is not adapted yet. Host differences, known limits and items still to test are in [host adaptation](docs/harnesses.md) and [#43](https://github.com/shio-vinyl/gis-plugin/issues/43).
 
 ## Documentation
 

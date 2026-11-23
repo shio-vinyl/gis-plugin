@@ -238,8 +238,11 @@ class InstalledSkills(unittest.TestCase):
 
     def test_link_is_ok(self):
         self.install(".dsh", "gis-kit").symlink_to(self.kit)
+        self.install(".gemini/config", "gis-kit").symlink_to(self.kit)
         item = self.skills()[("gis-kit", "dsh")]
         self.assertEqual((item["kind"], item["status"]), ("link", "ok"))
+        agy = self.skills()[("gis-kit", "AGY")]
+        self.assertEqual((agy["kind"], agy["status"]), ("link", "ok"))
 
     def test_copy_in_step_is_ok(self):
         shutil.copytree(self.kit, self.install(".claude", "gis-kit"), ignore=shutil.ignore_patterns("notes.tmp"))
@@ -533,6 +536,8 @@ class HookCommands(unittest.TestCase):
     def test_login_shell_follows_shell_variable(self):
         labels = [label for label, _ in doctor.hook_shells({**self.env, "SHELL": "/bin/zsh"}, windows=False)]
         self.assertIn("zsh -lc，Codex", labels)
+        if os.path.isfile("/bin/sh"):
+            self.assertIn("sh，AGY", labels)
 
     def test_missing_interpreter_is_reported_without_failing_the_run(self):
         report = doctor.run({**self.env, "GIS_PLUGIN_PYTHON": str(self.tmp / "nope"), "GIS_PLUGIN_CONFIG": "/nonexistent/engines.env"})
@@ -567,9 +572,11 @@ class HookCommands(unittest.TestCase):
         self.assertTrue(item["stderr"].endswith("real-cause"))
 
     def test_unreadable_hooks_file_is_unknown(self):
-        with mock.patch.object(doctor, "HOOKS_FILE", self.tmp / "none.json"):
-            [item] = doctor.check_hook_commands(self.env)
-        self.assertEqual(item["status"], "unknown")
+        with mock.patch.object(doctor, "HOOKS_FILE", self.tmp / "none.json"), \
+                mock.patch.object(doctor, "AGY_HOOKS_FILE", self.tmp / "none-agy.json"):
+            results = doctor.check_hook_commands(self.env)
+        self.assertTrue(results)
+        self.assertEqual({item["status"] for item in results}, {"unknown"})
 
     def test_windows_shells_follow_dsh_resolution(self):
         program_files, system_root = r"C:\PF", r"C:\Windows"

@@ -194,6 +194,41 @@ class InjectDescribe(unittest.TestCase):
         broken = run("not json")
         self.assertEqual((broken.returncode, broken.stdout), (0, ""))
 
+    def test_antigravity_pre_invocation_and_two_stage_post_tool_use(self):
+        def run(payload):
+            return subprocess.run([sys.executable, str(SCRIPT)], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                                  capture_output=True, env={**os.environ, **self.env, "PYTHONDONTWRITEBYTECODE": "1"})
+
+        # Stage 1: user prompt mention on PreInvocation
+        pre0 = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.tmp),
+                    "workspacePaths": [str(self.tmp)], "invocationNum": 0, "lastUserInput": "看看 data/dem.tif"})
+        self.assertEqual(pre0.returncode, 0, pre0.stderr)
+        out0 = json.loads(pre0.stdout.decode("ascii"))
+        self.assertEqual(set(out0), {"injectSteps"})
+        self.assertIn("dem.tif", out0["injectSteps"][0]["systemMessage"]["systemMessage"])
+
+        # Stage 2: two parallel PostToolUse calls discover new GIS files (one via read_file, one via cd in run_command)
+        post1 = run({"hookEventName": "PostToolUse", "conversationId": "conv-1", "cwd": str(self.tmp),
+                     "toolCall": {"id": "c1", "name": "read_file", "args": {"Path": str(self.data / "地类图斑.gpkg")}}})
+        post2 = run({"hookEventName": "PostToolUse", "conversationId": "conv-1", "cwd": str(self.tmp),
+                     "toolCall": {"id": "c2", "name": "run_command", "args": {"CommandLine": "cd data && ls broken.shp"}}})
+        self.assertEqual((post1.returncode, json.loads(post1.stdout)), (0, {}))
+        self.assertEqual((post2.returncode, json.loads(post2.stdout)), (0, {}))
+
+        # Next PreInvocation drains both queued files while skipping already-carded dem.tif from lastUserInput
+        pre1 = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.tmp),
+                    "workspacePaths": [str(self.tmp)], "invocationNum": 1, "lastUserInput": "看看 data/dem.tif"})
+        self.assertEqual(pre1.returncode, 0, pre1.stderr)
+        msg1 = json.loads(pre1.stdout.decode("ascii"))["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn("地类图斑.gpkg", msg1)
+        self.assertIn("broken.shp", msg1)
+        self.assertNotIn("dem.tif", msg1)
+
+        # Subsequent PreInvocation with nothing new returns empty stdout
+        pre2 = run({"hookEventName": "PreInvocation", "conversationId": "conv-1", "cwd": str(self.tmp),
+                    "workspacePaths": [str(self.tmp)], "invocationNum": 2, "lastUserInput": "看看 data/dem.tif"})
+        self.assertEqual((pre2.returncode, pre2.stdout), (0, b""))
+
 
 if __name__ == "__main__":
     unittest.main()

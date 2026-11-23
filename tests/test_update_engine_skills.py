@@ -108,8 +108,10 @@ class UpdateEngineSkills(unittest.TestCase):
 
     def test_symlink_and_missing_are_left_alone(self):
         (self.skills(".dsh") / "gis-composer").symlink_to(self.composer)
+        (self.skills(".gemini/config") / "gis-composer").symlink_to(self.composer)
         results = updater.run(self.environ)
         self.assertEqual(self.result(results, "gis-composer", "dsh")["status"], "skip")
+        self.assertEqual(self.result(results, "gis-composer", "AGY")["status"], "skip")
         self.assertEqual(self.result(results, "gis-composer", "CC")["message"], "未安装")
         self.assertFalse((self.home / ".claude" / "skills" / "gis-composer").exists())
 

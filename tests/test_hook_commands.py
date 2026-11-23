@@ -300,5 +300,68 @@ class PowerShell(Fixture):
                     self.assertEqual(done.returncode, 0, done.stderr.decode("utf-8", "replace"))
 
 
+@unittest.skipIf(os.name == "nt", "Antigravity root hooks.json targets Unix sh -c")
+class AntigravityHooks(Fixture):
+    """Run the commands in root hooks.json the way Antigravity runs them: sh -c with cwd = plugin root."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy2(ROOT / "hooks.json", self.root / "hooks.json")
+        self.ag_hooks = json.loads((self.root / "hooks.json").read_text(encoding="utf-8"))["gis-plugin"]
+
+    def run_ag(self, command, payload, **env):
+        return subprocess.run([shutil.which("sh"), "-c", command],
+                              input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                              capture_output=True, cwd=self.root, env={**self.env, **env}, timeout=120)
+
+    def test_root_hooks_json_commands_exist_and_use_relative_paths(self):
+        commands = [h["command"] for h in self.ag_hooks["PreInvocation"]] + [
+            h["command"] for event in ("PreToolUse", "PostToolUse") for g in self.ag_hooks[event] for h in g["hooks"]
+        ]
+        for command in commands:
+            match = re.fullmatch(r'exec "\$\{GIS_PLUGIN_PYTHON:-python3\}" (\./hooks/scripts/\w+\.py)', command)
+            self.assertIsNotNone(match, command)
+            self.assertTrue((ROOT / match[1]).is_file())
+
+    def test_protect_style_and_artifact_text_end_to_end(self):
+        protect = self.ag_hooks["PreToolUse"][0]["hooks"][0]["command"]
+        denied = self.run_ag(protect, {
+            "hookEventName": "PreToolUse", "conversationId": "c-1", "cwd": str(self.data),
+            "toolCall": {"id": "t1", "name": "write_file", "args": {"Path": str(self.data / "原始" / "甲.csv")}},
+        }, GIS_PLUGIN_PYTHON=sys.executable)
+        self.assertEqual(denied.returncode, 0, denied.stderr.decode())
+        out = json.loads(denied.stdout.decode("ascii"))
+        self.assertEqual(out["decision"], "deny")
+        self.assertIn("原始", out["reason"])
+
+        allowed = self.run_ag(protect, {
+            "hookEventName": "PreToolUse", "conversationId": "c-1", "cwd": str(self.data),
+            "toolCall": {"id": "t2", "name": "write_file", "args": {"Path": str(self.data / "ok.csv")}},
+        }, GIS_PLUGIN_PYTHON=sys.executable)
+        self.assertEqual((allowed.returncode, allowed.stdout), (0, b""))
+
+        state = str(self.tmp / "ag-state")
+        (self.data / "style").mkdir()
+        (self.data / "style" / "STYLE.md").write_text("# 样式\n", encoding="utf-8")
+        style_cmd = next(h["command"] for h in self.ag_hooks["PreInvocation"] if "inject_style.py" in h["command"])
+        styled = self.run_ag(style_cmd, {
+            "hookEventName": "PreInvocation", "conversationId": "c-1", "cwd": str(self.data), "invocationNum": 0,
+        }, GIS_PLUGIN_PYTHON=sys.executable, GIS_PLUGIN_STATE=state)
+        self.assertIn("style/STYLE.md", json.loads(styled.stdout.decode("ascii"))["injectSteps"][0]["systemMessage"]["systemMessage"])
+
+        (self.data / "图 甲.svg").write_text('<svg><text>范围示意，仅供参考</text></svg>', encoding="utf-8")
+        post_cmd = next(h["command"] for g in self.ag_hooks["PostToolUse"] for h in g["hooks"] if "check_artifact_text.py" in h["command"])
+        pre_cmd = next(h["command"] for h in self.ag_hooks["PreInvocation"] if "check_artifact_text.py" in h["command"])
+        post = self.run_ag(post_cmd, {
+            "hookEventName": "PostToolUse", "conversationId": "c-1", "cwd": str(self.data), "error": "",
+            "toolCall": {"id": "t3", "name": "write_file", "args": {"Path": str(self.data / "图 甲.svg")}},
+        }, GIS_PLUGIN_PYTHON=sys.executable, GIS_PLUGIN_STATE=state)
+        self.assertEqual((post.returncode, json.loads(post.stdout)), (0, {}))
+        pre = self.run_ag(pre_cmd, {
+            "hookEventName": "PreInvocation", "conversationId": "c-1", "cwd": str(self.data), "invocationNum": 1,
+        }, GIS_PLUGIN_PYTHON=sys.executable, GIS_PLUGIN_STATE=state)
+        self.assertIn("范围示意，仅供参考", json.loads(pre.stdout.decode("ascii"))["injectSteps"][0]["systemMessage"]["systemMessage"])
+
+
 if __name__ == "__main__":
     unittest.main()

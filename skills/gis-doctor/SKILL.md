@@ -41,7 +41,7 @@ doctor 对每个已配置的引擎运行 `<命令> capabilities --json`，按 `c
 
 ## 已装的系列 skill
 
-doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效）里的 gis-kit、gis-view、gis-composer、plan-deck、chart-forms、plan-diagram、house-style（固定清单），先列出每个 skill 装在哪几处、是哪种安装，以及哪些哪里都没装。源仓库由上面两张表的变量定位：
+doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`~/.dsh/skills`、`~/.gemini/config/skills`（`CLAUDE_CONFIG_DIR`、`CODEX_HOME` 生效）里的 gis-kit、gis-view、gis-composer、plan-deck、chart-forms、plan-diagram、house-style（固定清单），先列出每个 skill 装在哪几处、是哪种安装，以及哪些哪里都没装。源仓库由上面两张表的变量定位：
 
 - 软链随源仓库，不报。
 - git clone 报告比本机源仓库落后几个提交（读源仓库，不联网；clone 的 HEAD 不在源仓库历史里时不计数），并和复制的目录一样，按源仓库 `git ls-files` 列出的文件逐个比对内容；缺少或不同时报“落后”并列出文件，多出的文件不算。
@@ -60,9 +60,9 @@ doctor 还检查 `~/.claude/skills`、`~/.codex/skills`、`~/.agents/skills`、`
 
 ## hook 命令能否运行
 
-doctor 取 `hooks/hooks.json` 里的保护 hook 命令，在这个平台各宿主用的 shell 里各跑一次，让它判断一个临时目录里的探针路径（带中文和空格），只有收到 deny 才算正常：
+doctor 取 `hooks/hooks.json` 与根目录 `hooks.json`（Antigravity）里的保护 hook 命令，在这个平台各宿主用的 shell 里各跑一次，让它判断一个临时目录里的探针路径（带中文和空格），只有收到 deny 才算正常：
 
-- macOS、Linux：`sh -c`（CC）、`bash -c`（dsh）、`$SHELL -lc`（Codex）。
-- Windows：PowerShell 7、Windows PowerShell 5.1（dsh）、Git Bash（CC，只在有 CC 配置目录或设了 `CLAUDE_CODE_GIT_BASH_PATH` 时）。Codex 在 Windows 上用什么 shell 未知，不检查。
+- macOS、Linux：`sh -c`（CC、AGY）、`bash -c`（dsh）、`$SHELL -lc`（Codex）。
+- Windows：PowerShell 7、Windows PowerShell 5.1（dsh）、Git Bash（CC，只在有 CC 配置目录或设了 `CLAUDE_CODE_GIT_BASH_PATH` 时）。Codex 与 AGY 在 Windows 上暂不检查。
 
 命令解析失败、解释器不存在或是占位程序、stdin 里的中文被改坏时报告，不影响退出码。探针用的是 doctor 自己的环境变量，宿主进程的环境可能不同；要确认宿主里生效，还得在真实回合写一次受保护文件。

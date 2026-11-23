@@ -49,6 +49,7 @@ BRIDGE = "@deepseek-ai/dsh-hooks-claude-code"
 BRIDGE_PROTOCOL = "@deepseek-ai/dsh-hook-protocol"
 BRIDGE_LINE = re.compile(r"^\s*(?:-\s*)?name:\s*['\"]?" + re.escape(BRIDGE) + r"['\"]?\s*(?:#.*)?$", re.M)
 HOOKS_FILE = Path(__file__).resolve().parents[3] / "hooks" / "hooks.json"
+AGY_HOOKS_FILE = Path(__file__).resolve().parents[3] / "hooks.json"
 CONTRACTS_FILE = Path(__file__).resolve().parents[3] / "contracts" / "README.md"
 TABLE_SKIPPED = ("暂缓", "取消")  # rows in these states have no reader or writer to hold to
 POWERSHELL_ARGS = ("-NoLogo", "-NoProfile", "-NonInteractive", "-Command")
@@ -312,6 +313,7 @@ def skill_dirs(environ):
         ("Codex", Path(environ.get("CODEX_HOME") or home / ".codex") / "skills"),
         ("agents", home / ".agents" / "skills"),
         ("dsh", home / ".dsh" / "skills"),
+        ("AGY", home / ".gemini" / "config" / "skills"),
     )
 
 
@@ -530,26 +532,35 @@ def hook_shells(environ, windows=os.name == "nt"):
         shells.append(("bash，dsh", [bash, "-c"]))
     if environ.get("SHELL"):
         shells.append((f"{Path(environ['SHELL']).name} -lc，Codex", [environ["SHELL"], "-lc"]))
+    if os.path.isfile("/bin/sh"):
+        shells.append(("sh，AGY", ["/bin/sh", "-c"]))
     return shells
 
 
-def probe_hook_command(command, argv, environ):
+def probe_hook_command(command, argv, environ, agy=False, cwd=None):
     """Run the protection hook in one shell against a throwaway registered path. Only a deny proves it worked."""
     with tempfile.TemporaryDirectory(prefix="gis-doctor-hook-") as tmp:
         data = Path(tmp) / "探针 目录"
         (data / ".gis").mkdir(parents=True)
         registry = {"contract": "sources", "schema_version": 1, "protected": ["原始/**"]}
         (data / ".gis" / "sources.json").write_text(json.dumps(registry, ensure_ascii=False), encoding="utf-8")
-        payload = {"hook_event_name": "PreToolUse", "tool_name": "write", "cwd": str(data),
-                   "tool_input": {"file_path": str(data / "原始" / "甲.csv")}}
+        if agy:
+            payload = {"hookEventName": "PreToolUse", "cwd": str(data), "workspacePaths": [str(data)],
+                       "conversationId": "gis-doctor-probe",
+                       "toolCall": {"id": "probe-1", "name": "write_file",
+                                    "args": {"Path": str(data / "原始" / "甲.csv")}}}
+        else:
+            payload = {"hook_event_name": "PreToolUse", "tool_name": "write", "cwd": str(data),
+                       "tool_input": {"file_path": str(data / "原始" / "甲.csv")}}
         try:
             done = subprocess.run([*argv, command], input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                                  capture_output=True, cwd=data, env=dict(environ), timeout=TIMEOUT_SECONDS)
+                                  capture_output=True, cwd=cwd or data, env=dict(environ), timeout=TIMEOUT_SECONDS)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return {"status": "warn", "message": f"hook 没运行（{exc}），受保护文件照样能写"}
     try:
-        denied = json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
-    except (ValueError, KeyError, TypeError):
+        out = json.loads(done.stdout)
+        denied = (out.get("decision") == "deny") if agy else (out["hookSpecificOutput"]["permissionDecision"] == "deny")
+    except (ValueError, KeyError, TypeError, AttributeError):
         denied = False
     if denied:
         return {"status": "ok", "message": "探针写入被拒绝（用的是 doctor 的环境变量，宿主的可能不同）"}
@@ -562,12 +573,27 @@ def probe_hook_command(command, argv, environ):
 
 def check_hook_commands(environ):
     """Does the command in hooks.json run here? A parse error or a missing interpreter is otherwise silent."""
-    try:
-        command = json.loads(HOOKS_FILE.read_text(encoding="utf-8"))["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-    except (OSError, ValueError, KeyError, IndexError, TypeError):
-        return [{"shell": "未检查", "status": "unknown", "message": f"读不到 {HOOKS_FILE}"}]
-    command = command.replace("${CLAUDE_PLUGIN_ROOT}", str(HOOKS_FILE.parents[1]))
-    return [{"shell": label, **probe_hook_command(command, argv, environ)} for label, argv in hook_shells(environ)]
+    shells = hook_shells(environ)
+    standard_shells = [(label, argv) for label, argv in shells if "AGY" not in label]
+    agy_shells = [(label, argv) for label, argv in shells if "AGY" in label]
+    results = []
+    if standard_shells:
+        try:
+            command = json.loads(HOOKS_FILE.read_text(encoding="utf-8"))["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            results.append({"shell": "未检查", "status": "unknown", "message": f"读不到 {HOOKS_FILE}"})
+        else:
+            command = command.replace("${CLAUDE_PLUGIN_ROOT}", str(HOOKS_FILE.parents[1]))
+            results += [{"shell": label, **probe_hook_command(command, argv, environ)} for label, argv in standard_shells]
+    if agy_shells:
+        try:
+            agy_command = json.loads(AGY_HOOKS_FILE.read_text(encoding="utf-8"))["gis-plugin"]["PreToolUse"][0]["hooks"][0]["command"]
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            results.append({"shell": "sh，AGY", "status": "unknown", "message": f"读不到 {AGY_HOOKS_FILE}"})
+        else:
+            results += [{"shell": label, **probe_hook_command(agy_command, argv, environ, agy=True, cwd=AGY_HOOKS_FILE.parent)}
+                        for label, argv in agy_shells]
+    return results
 
 
 def run(environ):
@@ -592,7 +618,7 @@ KINDS = {"link": "软链", "clone": "clone", "copy": "副本", "entry": "单文�
 
 def render_inventory(skills):
     """Where each series skill is installed and how, then the ones installed nowhere."""
-    lines = ["- 系列 skill（CC、Codex、agents、dsh 四处）："]
+    lines = ["- 系列 skill（CC、Codex、agents、dsh、AGY 五处）："]
     nowhere = []
     for skill, _, _ in series_skills():
         found = [f"{item['harness']} {KINDS[item['kind']]}" for item in skills if item["skill"] == skill]

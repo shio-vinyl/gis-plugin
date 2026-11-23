@@ -233,6 +233,52 @@ class ProtectSources(unittest.TestCase):
                                     env={**os.environ, "PYTHONIOENCODING": "gbk"})
             self.assertEqual(json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"], "deny", result.stderr)
 
+    def test_antigravity_tools_cd_and_strict_output(self):
+        def ag_payload(name, args, cwd=None, use_workspace=False):
+            doc = {"hookEventName": "PreToolUse", "conversationId": "c-1",
+                   "toolCall": {"id": "call-1", "name": name, "args": args}}
+            if use_workspace:
+                doc["workspacePaths"] = [str(cwd or self.data)]
+            else:
+                doc["cwd"] = str(cwd or self.data)
+            return doc
+
+        target = str(self.data / "raw" / "a.gpkg")
+        for tool, args in [
+            ("write_file", {"Path": target, "Content": "x"}),
+            ("edit_file", {"Path": target, "Target": "a", "Replacement": "b"}),
+            ("write_to_file", {"TargetFile": target}),
+            ("replace_file_content", {"TargetFile": target}),
+            ("multi_replace_file_content", {"TargetFile": target}),
+            ("notebook_edit", {"Path": str(self.data / "raw" / "n.ipynb")}),
+            ("run_command", {"CommandLine": "rm raw/a.gpkg"}),
+            ("run_command", {"CommandLine": "cd raw && rm a.gpkg"}),
+            ("run_command", {"CommandLine": f"cd '{self.data}' && echo x > raw/a.csv"}),
+        ]:
+            with self.subTest(tool=tool, args=args):
+                cwd = self.tmp if "cd '" in str(args) else self.data
+                self.assertTrue(hook.decide(ag_payload(tool, args, cwd=cwd)))
+
+        # workspacePaths fallback when cwd is omitted
+        self.assertTrue(hook.decide(ag_payload("run_command", {"CommandLine": "rm raw/a.csv"}, use_workspace=True)))
+        # subshell cd does not leak past `)`
+        self.assertFalse(hook.decide(ag_payload("run_command", {"CommandLine": "(cd raw && cat a.csv) > out.csv"})))
+        self.assertFalse(hook.decide(ag_payload("read_file", {"Path": target})))
+
+        # CLI output uses strict Antigravity protojson: {"decision": "deny", "reason": ...}, empty stdout on allow
+        denied = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True,
+                                input=json.dumps(ag_payload("write_file", {"Path": target})))
+        self.assertEqual(denied.returncode, 0, denied.stderr)
+        out = json.loads(denied.stdout)
+        self.assertEqual(set(out), {"decision", "reason"})
+        self.assertEqual(out["decision"], "deny")
+        self.assertIn("raw/**", out["reason"])
+        self.assertTrue(denied.stdout.isascii())
+
+        allowed = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True,
+                                 input=json.dumps(ag_payload("write_file", {"Path": str(self.data / "out" / "ok.csv")})))
+        self.assertEqual((allowed.returncode, allowed.stdout), (0, ""))
+
 
 if __name__ == "__main__":
     unittest.main()
